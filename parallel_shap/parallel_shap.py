@@ -117,17 +117,33 @@ def generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd
 
 
 # move to helpers
-def make_shap_df(shap_values, x_df):
+def make_shap_df(shap_values: np.array, x_df: pd.DataFrame) -> pd.DataFrame:
     """
+    Converts a numpy array of SHAP values into a dataframe, using the column names from x_df.
 
-    :param shap_values:
-    :param x_df:
-    :return:
+    :param shap_values: array of SHAP values
+    :param x_df: x dataframe
+    :return: dataframe of SHAP values
     """
     return pd.DataFrame(shap_values, columns=list(x_df))
 
 
-def produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model, return_df=True):
+def produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                              regression_model: bool, return_df: bool = True) -> tuple:
+    """
+    Using the Kernel Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
+    expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
+    to increase speed.
+
+    :param model: fitted model
+    :param x_df: x dataframe
+    :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
+    :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
+    and a dataframe of global SHAP values
+    """
     explainer = shap.KernelExplainer(model.predict_proba, x_df)
     shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model)
     shap_expected_value = get_shap_expected_value(explainer, boosting_model)
@@ -139,7 +155,22 @@ def produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regre
         return shap_values, shap_expected_value, global_shap_df
 
 
-def produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regression_model, return_df=True):
+def produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                            regression_model: bool, return_df: bool = True) -> tuple:
+    """
+    Using the Tree Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
+    expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
+    to increase speed.
+
+    :param model: fitted model
+    :param x_df: x dataframe
+    :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
+    :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
+    and a dataframe of global SHAP values
+    """
     explainer = shap.TreeExplainer(model)
     shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model)
     shap_expected_value = get_shap_expected_value(explainer, boosting_model)
@@ -151,9 +182,23 @@ def produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regress
         return shap_values, shap_expected_value, global_shap_df
 
 
-def produce_shap_output_with_linear_explainer(model, x_df, regression_model, return_df=True):
-    explainer = shap.LinearExplainer(model)
-    shap_values = shap_values = run_parallel_shap_explainer(x_df, explainer, False, regression_model)
+def produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFrame, regression_model: bool,
+                                              return_df: bool = True) -> tuple:
+    """
+    Using the Linear Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
+    expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
+    to increase speed.
+
+    :param model: fitted model
+    :param x_df: x dataframe
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
+    :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
+    and a dataframe of global SHAP values
+    """
+    explainer = shap.LinearExplainer(model, x_df)
+    shap_values= run_parallel_shap_explainer(x_df, explainer, False, regression_model)
     shap_expected_value = get_shap_expected_value(explainer, False)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
@@ -163,7 +208,29 @@ def produce_shap_output_with_linear_explainer(model, x_df, regression_model, ret
         return shap_values, shap_expected_value, global_shap_df
 
 
-def produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model):
+def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                                  linear_model: bool) -> tuple:
+    """
+    Produces SHAP values for a CalibratedClassifierCV. This process will extract the SHAP values for every base
+    estimator in the calibration ensemble. The SHAP values will then be averaged. For details on the
+    CalibratedClassifierCV, please go to the following link
+    https://scikit-learn.org/stable/modules/generated/sklearn.calibration.CalibratedClassifierCV.html. Since we are
+    extracting only the SHAP values for the base estimator, we will miss some detail since we are not using the full
+    calibrator pair. Therefore, while these SHAP values will still be instructive, they will not be perfectly precise.
+    For more precision, we would need to use the Kernel Explainer. The main benefit of the approach in this function is
+    computational as the Kernel Explainer can be quite slow.
+
+    The following output is generated: SHAP values for every row in x_df, the expected value from the SHAP explainer,
+    and a dataframe of global SHAP values. Runs the SHAP explainer in parallel to increase speed.
+
+    :param model: fitted model
+    :param x_df: x dataframe
+    :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param linear_model: Boolean of whether or not this is a linear model; if not, it is assumed this is a tree-based
+    model
+    :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
+    and a dataframe of global SHAP values
+    """
     shap_values_list = []
     shap_expected_list = []
     for calibrated_classifier in model.calibrated_classifiers_:
@@ -173,7 +240,7 @@ def produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, l
             )
         else:
             shap_values, shap_expected_value = produce_shap_output_with_tree_explainer(
-                model, x_df, boosting_model, regression_model=False, return_df=False
+                calibrated_classifier.base_estimator, x_df, boosting_model, regression_model=False, return_df=False
             )
         shap_values_list.append(shap_values)
         shap_expected_list.append(shap_expected_value)
@@ -184,21 +251,24 @@ def produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, l
     return shap_values_df, shap_expected_value, global_shap_df
 
 
-def produce_raw_shap_values(model, x_df, use_kernel, linear_model, tree_model, calibrated_model, boosting_model,
-                            regression_model):
+def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: bool, linear_model: bool, tree_model: bool,
+                            calibrated_model: bool, boosting_model: bool, regression_model: bool) -> tuple:
     """
-    Produces the raw shap values for every observation in the test set. A dataframe of the shap values is saved locally
-    as a csv. The shap expected value is extracted and save locally in a csv.
+    Produces SHAP output for every observation in x_df: SHAP values for every row in x_df, the expected value from the
+    SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel to increase speed.
+    The appropriate explainer is used based on the boolean function arguments.
 
     :param model: fitted model
     :param x_df: x dataframe
-    :param calibrated_model: boolean of whether or not the model is a CalibratedClassifierCV; the default is False
+    :param use_kernel: Boolean of whether or not to use Kernel SHAP
+    :param linear_model: Boolean of whether model is a linear model, which would employ Linear SHAP
+    :param tree_model: Boolean of whether model is a tree-based model, which would employ Tree SHAP
+    :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
-    :param use_kernel: Boolean of whether or not to use Kernel SHAP, which mostly makes sense when we are using a
-    CalibratedClassifierCV
-    :param tree_model:
-    :param linear_model:
-    :returns: pandas dataframe
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
+    SHAP explainer, and a dataframe of global SHAP values
     """
     if use_kernel:
         return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model)
@@ -210,14 +280,16 @@ def produce_raw_shap_values(model, x_df, use_kernel, linear_model, tree_model, c
         return produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model)
 
 
-def generate_shap_summary_plot(shap_values, x_df, plot_type, save_path, file_prefix=None):
+def generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_type: str, save_path : str,
+                               file_prefix: str = None):
     """
-    Generates a plot of shap values and saves it locally.
+    Generates a summary plot of SHAP values and saves it locally.
 
     :param shap_values: numpy array of shap values produced for x_df
     :param x_df: x dataframe
-    :param file_prefix
-    :param plot_type: the type of plot we want to generate; generally, either dot or bar
+    :param plot_type: the type of plot we want to generate; generally, either 'dot' or 'bar'
+    :param save_path: path in which to save the plot
+    :param file_prefix: prefix to add to the file name.
     """
     shap.summary_plot(shap_values, x_df, plot_type=plot_type, show=False)
     if not file_prefix:
@@ -229,12 +301,12 @@ def generate_shap_summary_plot(shap_values, x_df, plot_type, save_path, file_pre
 
 
 # move to helpers
-def determine_if_name_in_object(name, py_object):
+def determine_if_name_in_object(name: str, py_object: object) -> bool:
     """
     Determine if a name is in a Python object.
 
-    :param py_object: Python object
     :param name: name to search for in py_object
+    :param py_object: Python object
     """
     object_str = str((type(py_object))).lower()
     if name in object_str:
@@ -244,12 +316,13 @@ def determine_if_name_in_object(name, py_object):
 
 
 # move to helpers
-def determine_if_any_name_in_object(names_list, py_object):
+def determine_if_any_name_in_object(names_list: list, py_object: object) -> bool:
     """
+    Determines if any name in names_list is also in the name of py_object, an arbitrary Python object.
 
-    :param names_list:
-    :param py_object:
-    :return:
+    :param names_list: list of names to search fow
+    :param py_object: an arbitrary Python object
+    :return: boolean classification of if a match was found
     """
     for name in names_list:
         result = determine_if_name_in_object(name, py_object)
@@ -258,7 +331,13 @@ def determine_if_any_name_in_object(names_list, py_object):
 
 
 # move to helpers
-def determine_if_regression_model(model):
+def determine_if_regression_model(model: callable) -> bool:
+    """
+    Determines if model is a regression model.
+
+    :param model: fitted model
+    :return: Boolean of whether or not the model is a regression
+    """
     regression = determine_if_name_in_object('regression', model)
     log_reg_check = determine_if_name_in_object('logistic', model)
     if regression and not log_reg_check:
@@ -267,13 +346,37 @@ def determine_if_regression_model(model):
         return False
 
 
-def generate_shap_values(model, x_df, linear_model=None, tree_model=None, boosting_model=None,
-                         calibrated_model=None, regression_model=False, use_kernel=False):
+def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool = None, tree_model: bool = None,
+                         boosting_model: bool = None, calibrated_model: bool = None, regression_model: bool = False,
+                         use_kernel: bool = False) -> tuple:
+    """
+    Generates SHAP values for the provided model and x_df. Three pieces of output are generated: dataframe of SHAP
+    values for every row in x_df, the expected value from the SHAP explainer, and a dataframe of global SHAP values.
+    The function will attempt to use the best explainer for the model (e.g. linear vs. tree). It will also attempt
+    to automatically detect if the model is a boosting model, which can require some special handling. Likewise, it
+    will work to automatically detect if the model is for classification or regression, which again requires some
+    subtle handling between the two. Additionally, if the model is a CalibratedClassifierCV, it will detect and
+    handle appropriately. Lastly, the user can specify any of these booleans if needed or useful. Related, the user
+    can specify if they want to use Kernel SHAP, which is appropriate in certain cases but is computationally expensive.
+    If using Kernel SHAP, it's recommended to use a sample of x_df.
+
+    :param model: fitted model
+    :param x_df: x dataframe
+    :param linear_model: Boolean of whether model is a linear model, which would employ Linear SHAP
+    :param tree_model: Boolean of whether model is a tree-based model, which would employ Tree SHAP
+    :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :param use_kernel: Boolean of whether or not to use Kernel SHAP
+    :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
+    SHAP explainer, and a dataframe of global SHAP values
+    """
     if not linear_model:
-        linear_model = determine_if_name_in_object(['logisticregression', 'linearregression', 'elasticnet', 'ridge',
-                                                    'lasso'], model)
+        linear_model = determine_if_any_name_in_object(['logisticregression', 'linearregression', 'elasticnet', 'ridge',
+                                                        'lasso'], model)
     if not tree_model:
-        tree_model = determine_if_name_in_object(['randomforest', 'extratrees', 'decisiontree', 'boost'], model)
+        tree_model = determine_if_any_name_in_object(['randomforest', 'extratrees', 'decisiontree', 'boost'], model)
     if not boosting_model:
         boosting_model = determine_if_name_in_object('boost', model)
     if not calibrated_model:
@@ -286,38 +389,54 @@ def generate_shap_values(model, x_df, linear_model=None, tree_model=None, boosti
     return shap_values_df, shap_expected_value, global_shap_df
 
 
+# move to helpers
+def save_expected_value(expected_value: float, save_path: os.path):
+    """
+    Saves the SHAP expected value to a txt file.
+
+    :param expected_value: expected value
+    :param save_path: path in which to save the file
+    """
+    with open(os.path.join(save_path, 'shap_expected_value.txt'), 'w') as f:
+        f.write(str(expected_value))
+
+
 def produce_shap_values_and_summary_plots(model, x_df, model_uid, save_path, linear_model, tree_model, boosting_model,
                                           calibrated_model, regression_model, use_kernel):
     """
-    Produces SHAP values for x_df and writes associated diagnostics locally.
+    Produces SHAP values for x_df and writes associated diagnostics locally. The following output is saved in
+    save_path in appropriate subdirectories: SHAP values for every row in x_df, global SHAP values for every feature
+    in x_df, the expected value of the SHAP explainer, bar plot of global SHAP features, and dot plot of SHAP values for
+    top features.
 
-    :param model: model with predict method
-    :param x_df: x dataframe
-    :param model_uid: model uid
-    :param use_kernel: Boolean of whether or not to use Kernel SHAP, which mostly makes sense when we are using a
-    CalibratedClassifierCV
-    :param save_path: path in which to save output; subdirectories titled 'files' and 'plots' will also be created,
-    and appropriate output will be saved in each
-    :param boosting_model:
-    :param calibrated_model:
-    :param linear_model:
+    The function will attempt to use the best explainer for the model (e.g. linear vs. tree). It will also attempt
+    to automatically detect if the model is a boosting model, which can require some special handling. Likewise, it
+    will work to automatically detect if the model is for classification or regression, which again requires some
+    subtle handling between the two. Additionally, if the model is a CalibratedClassifierCV, it will detect and
+    handle appropriately. Lastly, the user can specify any of these booleans if needed or useful. Related, the user
+    can specify if they want to use Kernel SHAP, which is appropriate in certain cases but is computationally expensive.
+    If using Kernel SHAP, it's recommended to use a sample of x_df.
+
     """
+    save_file_path = os.path.join(save_path, 'files')
+    save_plots_path = os.path.join(save_path, 'plots')
     make_directories_if_not_exists(
         [
             save_path,
-            os.path.join(save_path, 'files'),
-            os.path.join(save_path, 'plots'),
+            save_file_path,
+            save_plots_path,
         ]
     )
-    local_shap_df = generate_shap_values(model, x_df, linear_model, tree_model, boosting_model, calibrated_model,
-                                         regression_model, use_kernel)
-    generate_shap_global_values(local_shap_df, x_df)
-    generate_shap_summary_plot(local_shap_df, x_df, model_uid, 'dot')
-    generate_shap_summary_plot(local_shap_df, x_df, model_uid, 'bar')
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(
+        model, x_df, linear_model, tree_model, boosting_model, calibrated_model, regression_model, use_kernel
+    )
+    shap_values_df.to_csv(os.path.join(save_file_path, 'local_shap_values.csv'), index=False)
+    global_shap_df.to_csv(os.path.join(save_file_path, 'global_shap_values.csv'), index=False)
+    save_expected_value(shap_expected_value, save_file_path)
+    generate_shap_summary_plot(shap_values_df, x_df, model_uid, 'dot')
+    generate_shap_summary_plot(shap_values_df, x_df, model_uid, 'bar')
 
 
-# TODO: use type hints
-# TODO: docstrings
 # TODO: helpers file
 # TODO: add config file
 # TODO: error handling where needed
