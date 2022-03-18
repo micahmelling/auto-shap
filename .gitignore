@@ -1,4 +1,11 @@
 *.DS_Store
 .idea/
 __pycache__/
+.pytest_cache/
+catboost_info/
 venv/
+*.txt
+!requirements.txt
+*.csv
+*.png
+

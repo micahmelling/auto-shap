@@ -8,20 +8,28 @@ from statistics import mean
 
 from parallel_shap.utilities import make_directories_if_not_exists, run_parallel_shap_explainer, make_shap_df, \
     determine_if_name_in_object, determine_if_any_name_in_object, determine_if_regression_model, save_expected_value
-from parallel_shap.config import LINEAR_MODEL_NAMES, TREE_MODEL_NAMES
+from parallel_shap.config import LINEAR_MODEL_NAMES, TREE_MODEL_NAMES, AMBIGUOUS_REGRESSION_MODEL_NAMES
 
 
-def get_shap_expected_value(explainer: callable, boosting_model: bool) -> float:
+def get_shap_expected_value(explainer: callable, boosting_model: bool, linear_model) -> float:
     """
     Extracts a SHAP Explainer's expected value. For a classifier, this is the mean positive predicted probability.
     For a regression model, this is the mean predicted value.
 
     :param explainer: SHAP explainer object
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
     :returns: SHAP Explainer's expected value
     """
-    if boosting_model:
-        expected_value = explainer.expected_value[0]
+    if linear_model:
+        expected_value = explainer.expected_value
+    elif boosting_model:
+        try:
+            expected_value = explainer.expected_value[0]
+        except TypeError:
+            expected_value = explainer.expected_value
     else:
         try:
             expected_value = explainer.expected_value[1]
@@ -45,7 +53,8 @@ def generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd
 
 
 def produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
-                                              regression_model: bool, return_df: bool = True) -> tuple:
+                                              regression_model: bool, linear_model: bool,
+                                              return_df: bool = True) -> tuple:
     """
     Using the Kernel Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
     expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
@@ -57,12 +66,16 @@ def produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFram
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
     :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
     :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
     and a dataframe of global SHAP values
     """
-    explainer = shap.KernelExplainer(model.predict_proba, x_df)
-    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model)
-    shap_expected_value = get_shap_expected_value(explainer, boosting_model)
+    if regression_model:
+        explainer = shap.KernelExplainer(model.predict, x_df)
+    else:
+        explainer = shap.KernelExplainer(model.predict_proba, x_df)
+    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model, linear_model)
+    shap_expected_value = get_shap_expected_value(explainer, boosting_model, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
         shap_values_df = make_shap_df(shap_values, x_df)
@@ -72,7 +85,8 @@ def produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFram
 
 
 def produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
-                                            regression_model: bool, return_df: bool = True) -> tuple:
+                                            regression_model: bool, linear_model: bool,
+                                            return_df: bool = True) -> tuple:
     """
     Using the Tree Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
     expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
@@ -83,13 +97,14 @@ def produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame,
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
     :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
     :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
     and a dataframe of global SHAP values
     """
     explainer = shap.TreeExplainer(model)
-    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model)
-    shap_expected_value = get_shap_expected_value(explainer, boosting_model)
+    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model, False)
+    shap_expected_value = get_shap_expected_value(explainer, boosting_model, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
         shap_values_df = make_shap_df(shap_values, x_df)
@@ -99,7 +114,7 @@ def produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame,
 
 
 def produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFrame, regression_model: bool,
-                                              return_df: bool = True) -> tuple:
+                                              linear_model: bool, return_df: bool = True) -> tuple:
     """
     Using the Linear Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
     expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
@@ -109,13 +124,14 @@ def produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFram
     :param x_df: x dataframe
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
     :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
     :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
     and a dataframe of global SHAP values
     """
     explainer = shap.LinearExplainer(model, x_df)
-    shap_values= run_parallel_shap_explainer(x_df, explainer, False, regression_model)
-    shap_expected_value = get_shap_expected_value(explainer, False)
+    shap_values = run_parallel_shap_explainer(x_df, explainer, False, regression_model, True)
+    shap_expected_value = get_shap_expected_value(explainer, False, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
         shap_values_df = make_shap_df(shap_values, x_df)
@@ -151,12 +167,14 @@ def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.Data
     shap_expected_list = []
     for calibrated_classifier in model.calibrated_classifiers_:
         if linear_model:
-            shap_values, shap_expected_value = produce_shap_output_with_linear_explainer(
-                calibrated_classifier.base_estimator, x_df, regression_model=False, return_df=False
+            shap_values, shap_expected_value, _ = produce_shap_output_with_linear_explainer(
+                calibrated_classifier.base_estimator, x_df, regression_model=False, linear_model=linear_model,
+                return_df=False
             )
         else:
-            shap_values, shap_expected_value = produce_shap_output_with_tree_explainer(
-                calibrated_classifier.base_estimator, x_df, boosting_model, regression_model=False, return_df=False
+            shap_values, shap_expected_value, _ = produce_shap_output_with_tree_explainer(
+                calibrated_classifier.base_estimator, x_df, boosting_model, regression_model=False,
+                linear_model=linear_model, return_df=False
             )
         shap_values_list.append(shap_values)
         shap_expected_list.append(shap_expected_value)
@@ -187,11 +205,11 @@ def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: boo
     SHAP explainer, and a dataframe of global SHAP values
     """
     if use_kernel:
-        return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model)
+        return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model, linear_model)
     if linear_model:
-        return produce_shap_output_with_linear_explainer(model, x_df, regression_model)
+        return produce_shap_output_with_linear_explainer(model, x_df, regression_model, True)
     if tree_model:
-        return produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regression_model)
+        return produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regression_model, False)
     if calibrated_model:
         return produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model)
 
@@ -207,12 +225,12 @@ def generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_t
     :param save_path: path in which to save the plot
     :param file_prefix: prefix to add to the file name
     """
-    shap.summary_plot(shap_values, x_df, plot_type=plot_type, show=False)
+    shap.summary_plot(shap_values.values, x_df, plot_type=plot_type, show=False)
     if not file_prefix:
         file_name = f'shap_values_{plot_type}.png'
     else:
         file_name = f'{file_prefix}_shap_values_{plot_type}.png'
-    plt.savefig(os.path.join(save_path, file_name), bbox_inches='tight')
+    plt.savefig(os.path.join(save_path, 'plots', file_name), bbox_inches='tight')
     plt.clf()
 
 
@@ -247,11 +265,11 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     if not tree_model:
         tree_model = determine_if_any_name_in_object(TREE_MODEL_NAMES, model)
     if not boosting_model:
-        boosting_model = determine_if_name_in_object('boost', model)
+        boosting_model = determine_if_any_name_in_object(['boost', 'gbm'], model)
     if not calibrated_model:
         calibrated_model = determine_if_name_in_object('calibrated', model)
     if not regression_model:
-        regression_model = determine_if_regression_model(model)
+        regression_model = determine_if_regression_model(AMBIGUOUS_REGRESSION_MODEL_NAMES, model)
     shap_values_df, shap_expected_value, global_shap_df = produce_raw_shap_values(
         model, x_df, use_kernel, linear_model, tree_model, calibrated_model, boosting_model, regression_model
     )
@@ -308,8 +326,3 @@ def produce_shap_values_and_summary_plots(model: callable, x_df: pd.DataFrame, s
     save_expected_value(shap_expected_value, save_file_path)
     generate_shap_summary_plot(shap_values_df, x_df, 'bar', save_path, file_prefix)
     generate_shap_summary_plot(shap_values_df, x_df, 'dot', save_path, file_prefix)
-
-
-# TODO: build out repo
-# TODO: tests
-# TODO: documentation (readme)

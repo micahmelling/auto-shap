@@ -18,7 +18,7 @@ def make_directories_if_not_exists(directories_list: list):
 
 
 def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: bool,
-                       regression_model: bool) -> np.array:
+                       regression_model: bool, linear_model: bool) -> np.array:
     """
     Runs the SHAP explainer on a dataframe of predictors (i.e. x_df).
 
@@ -27,9 +27,14 @@ def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: 
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
     :param regression_model: Boolean of whether or not the explainer is for a regression model; if False, it is assumed
     we are dealing with a classification model
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
     """
-    if boosting_model or regression_model:
-        return explainer.shap_values(x_df)
+    if boosting_model or regression_model or linear_model:
+        shap_values = explainer.shap_values(x_df)
+        if len(np.shape(shap_values)) == 3:
+            return shap_values[1]
+        else:
+            return shap_values
     else:
         return explainer.shap_values(x_df)[1]
 
@@ -52,7 +57,7 @@ def set_n_jobs(n_jobs: int, x_df: pd.DataFrame) -> int:
 
 
 def run_parallel_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: bool, regression_model: bool,
-                                n_jobs: int = None) -> np.array:
+                                linear_model: bool, n_jobs: int = None) -> np.array:
     """
     Splits x_df into evenly-split partitions based on the n_jobs parameter. If n_jobs is not specified, the max number
     of CPUs is used. If n_jobs is set to a higher amount than the number of observations in x_df, n_jobs is rebalanced
@@ -64,12 +69,13 @@ def run_parallel_shap_explainer(x_df: pd.DataFrame, explainer: callable, boostin
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
     :param regression_model: Boolean of whether or not the explainer is for a regression model; if False, it is assumed
     we are dealing with a classification model
+    :param linear_model: Boolean of whether or not the explainer is for a linear model
     :param n_jobs: number of cores to use when processing
     """
     n_jobs = set_n_jobs(n_jobs, x_df)
     array_split = np.array_split(x_df, n_jobs)
     shap_fn = partial(run_shap_explainer, explainer=explainer, boosting_model=boosting_model,
-                      regression_model=regression_model)
+                      regression_model=regression_model, linear_model=linear_model)
     with mp.Pool(processes=n_jobs) as pool:
         result = pool.map(shap_fn, array_split)
     result = np.concatenate(result)
@@ -109,22 +115,27 @@ def determine_if_any_name_in_object(names_list: list, py_object: object) -> bool
     :param py_object: an arbitrary Python object
     :return: boolean classification of if a match was found
     """
+    match = False
     for name in names_list:
         result = determine_if_name_in_object(name, py_object)
         if result:
-            return result
+            match = True
+            break
+    return match
 
 
-def determine_if_regression_model(model: callable) -> bool:
+def determine_if_regression_model(ambiguous_regression_models: list, model: callable) -> bool:
     """
     Determines if model is a regression model.
 
+    :param ambiguous_regression_models: list of non-obvious regression model names
     :param model: fitted model
     :return: Boolean of whether or not the model is a regression
     """
-    regression = determine_if_name_in_object('regression', model)
+    regression = determine_if_any_name_in_object(['regress'] + ambiguous_regression_models, model)
+    classification = determine_if_name_in_object('classifier', model)
     log_reg_check = determine_if_name_in_object('logistic', model)
-    if regression and not log_reg_check:
+    if regression and not log_reg_check and not classification:
         return True
     else:
         return False
