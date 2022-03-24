@@ -9,4 +9,3 @@ TREE_MODEL_NAMES = [
 AMBIGUOUS_REGRESSION_MODEL_NAMES = [
     'elasticnet', 'ridge', 'lasso',
 ]
-

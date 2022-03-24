@@ -1,14 +1,19 @@
-import shap
-import pandas as pd
-import numpy as np
 import os
-import matplotlib.pyplot as plt
-
 from statistics import mean
 
-from parallel_shap.utilities import make_directories_if_not_exists, run_parallel_shap_explainer, make_shap_df, \
-    determine_if_name_in_object, determine_if_any_name_in_object, determine_if_regression_model, save_expected_value
-from parallel_shap.config import LINEAR_MODEL_NAMES, TREE_MODEL_NAMES, AMBIGUOUS_REGRESSION_MODEL_NAMES
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import shap
+
+from auto_shap.config import (AMBIGUOUS_REGRESSION_MODEL_NAMES,
+                              LINEAR_MODEL_NAMES, TREE_MODEL_NAMES)
+from auto_shap.utilities import (determine_if_any_name_in_object,
+                                 determine_if_name_in_object,
+                                 determine_if_regression_model,
+                                 make_directories_if_not_exists, make_shap_df,
+                                 run_parallel_shap_explainer,
+                                 save_expected_value)
 
 
 def get_shap_expected_value(explainer: callable, boosting_model: bool, linear_model) -> float:

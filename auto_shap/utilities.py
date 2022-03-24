@@ -1,9 +1,9 @@
-import pandas as pd
-import numpy as np
-import os
 import multiprocessing as mp
-
+import os
 from functools import partial
+
+import numpy as np
+import pandas as pd
 
 
 def make_directories_if_not_exists(directories_list: list):
@@ -100,7 +100,7 @@ def determine_if_name_in_object(name: str, py_object: object) -> bool:
     :param name: name to search for in py_object
     :param py_object: Python object
     """
-    object_str = str((type(py_object))).lower()
+    object_str = str(type(py_object)).lower()
     if name in object_str:
         return True
     else:
