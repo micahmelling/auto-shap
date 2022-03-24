@@ -1,7 +1,9 @@
 import os
 import shutil
 
+import pandas as pd
 import pytest
+import shap
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
 from sklearn.calibration import CalibratedClassifierCV
@@ -89,6 +91,30 @@ def extra_trees_calibrated_classifier_and_data():
 @pytest.fixture
 def xgboost_calibrated_classifier_and_data():
     return train_simple_classification_model(CalibratedClassifierCV(base_estimator=XGBClassifier(n_jobs=1)))
+
+
+def test_parallel_shap_accuracy_classification(random_forest_classifier_and_data):
+    model, x_df = random_forest_classifier_and_data
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
+    explainer = shap.TreeExplainer(model)
+    shap_values_df = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
+    shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
+    shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
+    shap_values_df['sum'] = shap_values_df.sum(axis=1)
+    shap_values_df = shap_values_df.sort_values(by=['sum'], ascending=True)
+    assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
+
+
+def test_parallel_shap_accuracy_regression(extra_trees_regressor_and_data):
+    model, x_df = extra_trees_regressor_and_data
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
+    explainer = shap.TreeExplainer(model)
+    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
+    shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
+    shap_values_df['sum'] = shap_values_df.sum(axis=1)
+    shap_values_df = shap_values_df.sort_values(by=['sum'], ascending=True)
+    assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
 
 
 def test_classification_tree_model(random_forest_classifier_and_data):
@@ -216,6 +242,12 @@ def test_produce_shap_values_and_summary_plots_random_forest_classifier(random_f
     assert os.path.exists('rfc_output/plots/shap_values_dot.png')
 
 
+def test_produce_shap_values_and_summary_plots_lightgbm_classifier(lightgbm_classifier_and_data):
+    model, x_df = lightgbm_classifier_and_data
+    produce_shap_values_and_summary_plots(model, x_df, 'lgb_output')
+    assert os.path.exists('lgb_output/plots/shap_values_dot.png')
+
+
 def test_produce_shap_values_and_summary_plots_calibrated_classifier(extra_trees_calibrated_classifier_and_data):
     model, x_df = extra_trees_calibrated_classifier_and_data
     produce_shap_values_and_summary_plots(model, x_df, 'cc_output')
@@ -238,7 +270,7 @@ def test_produce_shap_values_and_summary_plots_xgboost_classifier(xgboost_classi
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
     def remove_test_directories():
-        directories = ['xgbc_output', 'kcc_output', 'cc_output', 'rfc_output', 'etr_output']
+        directories = ['xgbc_output', 'kcc_output', 'cc_output', 'rfc_output', 'etr_output', 'lgb_output']
         for directory in directories:
             shutil.rmtree(directory)
     request.addfinalizer(remove_test_directories)

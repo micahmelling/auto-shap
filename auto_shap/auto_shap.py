@@ -24,8 +24,6 @@ def get_shap_expected_value(explainer: callable, boosting_model: bool, linear_mo
     :param explainer: SHAP explainer object
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
     :param linear_model: Boolean of whether or not the explainer is for a linear model
-    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
-    classification model
     :returns: SHAP Explainer's expected value
     """
     if linear_model:

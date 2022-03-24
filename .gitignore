@@ -8,4 +8,4 @@ venv/
 !requirements.txt
 *.csv
 *.png
-
+scratch.py
