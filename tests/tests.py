@@ -4,16 +4,18 @@ import shutil
 import pandas as pd
 import pytest
 import shap
-from catboost import CatBoostClassifier
-from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier, CatBoostRegressor
+from lightgbm import LGBMClassifier, LGBMRegressor
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.datasets import load_breast_cancer, load_diabetes
 from sklearn.ensemble import (ExtraTreesClassifier, ExtraTreesRegressor,
                               GradientBoostingClassifier,
                               GradientBoostingRegressor,
-                              RandomForestClassifier)
-from sklearn.linear_model import LogisticRegression, Ridge
-from xgboost import XGBClassifier
+                              RandomForestClassifier, RandomForestRegressor)
+from sklearn.linear_model import (ElasticNet, Lasso, LinearRegression,
+                                  LogisticRegression, Ridge)
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from xgboost import XGBClassifier, XGBRegressor
 
 from auto_shap.auto_shap import (generate_shap_values,
                                  produce_shap_values_and_summary_plots)
@@ -65,7 +67,7 @@ def lightgbm_classifier_and_data():
 
 @pytest.fixture
 def catboost_classifier_and_data():
-    return train_simple_classification_model(CatBoostClassifier())
+    return train_simple_classification_model(CatBoostClassifier(iterations=10))
 
 
 @pytest.fixture
@@ -81,6 +83,21 @@ def extra_trees_regressor_and_data():
 @pytest.fixture
 def gradient_boosting_regressor_and_data():
     return train_simple_regression_model(GradientBoostingRegressor())
+
+
+@pytest.fixture
+def xgb_regressor_and_data():
+    return train_simple_regression_model(XGBRegressor(n_jobs=1))
+
+
+@pytest.fixture
+def catboost_regressor_and_data():
+    return train_simple_regression_model(CatBoostRegressor(iterations=10))
+
+
+@pytest.fixture
+def lgbm_regressor_and_data():
+    return train_simple_regression_model(LGBMRegressor())
 
 
 @pytest.fixture
@@ -183,6 +200,30 @@ def test_regression_tree_model(extra_trees_regressor_and_data):
 
 def test_regression_gradient_boosting_model(gradient_boosting_regressor_and_data):
     model, x_df = gradient_boosting_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_xgb_model(xgb_regressor_and_data):
+    model, x_df = xgb_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_catboost_model(catboost_regressor_and_data):
+    model, x_df = catboost_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_lgbm_model(lgbm_regressor_and_data):
+    model, x_df = lgbm_regressor_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))

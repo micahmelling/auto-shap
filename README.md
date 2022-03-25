@@ -72,10 +72,78 @@ $ python3
 ```
 auto-shap detected this was a boosted regressor and handled appropriately.
 
-## Producing Plots
+## Saving Output
+The library also provides a helper function for saving output files and plots to a
+local directory.
+
+```buildoutcfg
+$ python3
+>>> from auto_shap.auto_shap import produce_shap_values_and_summary_plots
+>>> from sklearn.datasets import load_diabetes
+>>> from sklearn.ensemble import GradientBoostingRegressor
+>>> x, y = load_diabetes(return_X_y=True, as_frame=True)
+>>> model = GradientBoostingRegressor()
+>>> model.fit(x, y)
+>>> produce_shap_values_and_summary_plots(model=model, x_df=x_df, save_path='shap_output')
+```
+The above code will save three files into a files subdirectory in the specified
+shap_output directory.
+* A csv of SHAP values for every row in x_df.
+* A txt file containing expected values of the SHAP explainer.
+* A csv of the global SHAP values covering every feature in x_df.
+
+Likewise, two plots will be saved into a plots subdirectory.
+* A bar plot of the top global SHAP values.
+* A dot plot of SHAP values to show the influence of features across observations
+in x_df.
 
 ## Multiprocessing Support
+By default, the maximum number of cores are used to calculate SHAP values in
+parallel. To manually set the number of cores to use, you can do the following.
+
+```buildoutcfg
+>>> generate_shap_values(model, x_df, n_jobs=4)
+```
 
 ## Overriding Auto-Detection
+Using generate_shap_values or produce_shap_values_and_summary_plots will leverage
+auto-detection of certain model characteristics. Those are as follows, which are
+all controlled with Booleans:
+* linear_model
+* tree_model
+* boosting_model
+* calibrated_model
+* regression_model
 
-## Using the Repository
+Though auto-shap will handle most common models, it is not yet tuned to handle
+every possible type of model. In some cases, then, you can have to manually set
+one or more of the above booleans in the function calls. At present and at minimum,
+auto-shap will work with the following models.
+* XGBClassifier
+* XGBRegressor
+* CatBoostClassifier
+* CatBoostRegressor
+
+
+## CalibratedClassifierCV
+The auto-shap library provides support for scikit-learn's CalibratedClassifierCV.
+This implementation will extract the SHAP values for every base estimator in the
+calibration ensemble. The SHAP values will then be averaged. For details on the
+CalibratedClassifierCV, please go to the following link
+https://scikit-learn.org/stable/modules/generated/sklearn.calibration.CalibratedClassifierCV.html.
+Since we are extracting only the SHAP values for the base estimator, we will miss
+some detail since we are not using the full calibrator pair. Therefore, while
+these SHAP values will still be instructive, they will not be perfectly precise.
+For more precision, we would need to use the Kernel Explainer. The main benefit of
+the approach in this function is computational as the Kernel Explainer can be
+quite slow.
+
+## Other Potentially Useful Functionality
+The generate_shap_values function relies on a few underlying functions that can
+be accessed directly and have the corresponding arguments and datatypes.
+
+```buildoutcfg
+produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                          regression_model: bool, linear_model: bool,
+                                          return_df: bool = True, n_jobs: int = None) -> tuple:
+```
