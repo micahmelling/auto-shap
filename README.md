@@ -123,14 +123,28 @@ auto-shap will work with the following models.
 * XGBRegressor
 * CatBoostClassifier
 * CatBoostRegressor
-
+* LGBMClassifier
+* LGBMRegressor
+* ExtraTreesClassifier
+* ExtraTreesRegressor
+* GradientBoostingClassifier
+* GradientBoostingRegressor
+* RandomForestClassifier
+* RandomForestRegressor
+* ElasticNet
+* Lasso
+* LinearRegression
+* LogisticRegression
+* Ridge
+* DecisionTreeClassifier
+* DecisionTreeRegressor
 
 ## CalibratedClassifierCV
 The auto-shap library provides support for scikit-learn's CalibratedClassifierCV.
 This implementation will extract the SHAP values for every base estimator in the
 calibration ensemble. The SHAP values will then be averaged. For details on the
-CalibratedClassifierCV, please go to the following link
-https://scikit-learn.org/stable/modules/generated/sklearn.calibration.CalibratedClassifierCV.html.
+CalibratedClassifierCV, please go to the
+[documentation](https://scikit-learn.org/stable/modules/generated/sklearn.calibration.CalibratedClassifierCV.html).
 Since we are extracting only the SHAP values for the base estimator, we will miss
 some detail since we are not using the full calibrator pair. Therefore, while
 these SHAP values will still be instructive, they will not be perfectly precise.
@@ -143,7 +157,32 @@ The generate_shap_values function relies on a few underlying functions that can
 be accessed directly and have the corresponding arguments and datatypes.
 
 ```buildoutcfg
+get_shap_expected_value(explainer: callable, boosting_model: bool, linear_model) -> float
+
+generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd.DataFrame
+
 produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                           regression_model: bool, linear_model: bool,
-                                          return_df: bool = True, n_jobs: int = None) -> tuple:
+                                          return_df: bool = True, n_jobs: int = None) -> tuple
+
+produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                        regression_model: bool, linear_model: bool,
+                                        return_df: bool = True, n_jobs: int = None) -> tuple
+
+produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFrame, regression_model: bool,
+                                          inear_model: bool, return_df: bool = True, n_jobs: int = None) -> tuple
+
+produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                              linear_model: bool, n_jobs: int = None) -> tuple
+
+produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: bool, linear_model: bool, tree_model: bool,
+                        calibrated_model: bool, boosting_model: bool, regression_model: bool,
+                        n_jobs: int = None) -> tuple
+
+
+generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_type: str, save_path: str,
+                           file_prefix: str = None)
 ```
+
+## The End
+Enjoy explaining your models with auto-shap! Feel free to report any issues.

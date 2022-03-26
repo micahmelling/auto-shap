@@ -71,13 +71,43 @@ def catboost_classifier_and_data():
 
 
 @pytest.fixture
+def decision_tree_classifier_and_data():
+    return train_simple_regression_model(DecisionTreeClassifier())
+
+
+@pytest.fixture
 def ridge_regressor_and_data():
     return train_simple_regression_model(Ridge())
 
 
 @pytest.fixture
+def lasso_regressor_and_data():
+    return train_simple_regression_model(Lasso())
+
+
+@pytest.fixture
+def elastic_net_regressor_and_data():
+    return train_simple_regression_model(ElasticNet())
+
+
+@pytest.fixture
+def linear_regression_and_data():
+    return train_simple_regression_model(LinearRegression())
+
+
+@pytest.fixture
+def decision_tree_regressor_and_data():
+    return train_simple_regression_model(DecisionTreeRegressor())
+
+
+@pytest.fixture
 def extra_trees_regressor_and_data():
     return train_simple_regression_model(ExtraTreesRegressor())
+
+
+@pytest.fixture
+def random_forest_regressor_and_data():
+    return train_simple_regression_model(RandomForestRegressor())
 
 
 @pytest.fixture
@@ -134,8 +164,24 @@ def test_parallel_shap_accuracy_regression(extra_trees_regressor_and_data):
     assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
 
 
-def test_classification_tree_model(random_forest_classifier_and_data):
+def test_classification_random_forest_model(random_forest_classifier_and_data):
     model, x_df = random_forest_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_classification_extra_trees_model(extra_trees_classifier_and_data):
+    model, x_df = extra_trees_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_classification_decision_tree_model(decision_tree_classifier_and_data):
+    model, x_df = decision_tree_classifier_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
@@ -182,7 +228,7 @@ def test_classification_catboost_model(catboost_classifier_and_data):
     assert isinstance(shap_expected_value, float)
 
 
-def test_regression_linear_model(ridge_regressor_and_data):
+def test_regression_ridge_model(ridge_regressor_and_data):
     model, x_df = ridge_regressor_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
@@ -190,8 +236,48 @@ def test_regression_linear_model(ridge_regressor_and_data):
     assert isinstance(shap_expected_value, float)
 
 
-def test_regression_tree_model(extra_trees_regressor_and_data):
+def test_regression_lasso_model(lasso_regressor_and_data):
+    model, x_df = lasso_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_elastic_net_model(elastic_net_regressor_and_data):
+    model, x_df = elastic_net_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_linear_regression_model(linear_regression_and_data):
+    model, x_df = linear_regression_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_decision_tree_model(decision_tree_regressor_and_data):
+    model, x_df = decision_tree_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_extra_trees_model(extra_trees_regressor_and_data):
     model, x_df = extra_trees_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_regression_random_forest_model(random_forest_regressor_and_data):
+    model, x_df = random_forest_regressor_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
@@ -219,7 +305,6 @@ def test_regression_catboost_model(catboost_regressor_and_data):
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
-    assert isinstance(shap_expected_value, float)
 
 
 def test_regression_lgbm_model(lgbm_regressor_and_data):
