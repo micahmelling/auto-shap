@@ -158,6 +158,13 @@ For more precision, we would need to use the KernelExplainer. The main benefit o
 averaging the results of the base estimators is computational as the
 KernelExplainer can be quite slow.
 
+To use KernelShap, one can do the following. More or less, this will ignore the
+auto-generated model qualities. 
+
+```buildoutcfg
+>>> generate_shap_values(model, x_df, use_kernel=True)
+```
+
 ## Other Potentially Useful Functionality
 The generate_shap_values function relies on a few underlying functions that can
 be accessed directly and have the corresponding arguments and datatypes.
