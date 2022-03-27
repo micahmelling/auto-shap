@@ -1,5 +1,7 @@
 import os
 import shutil
+import time
+from copy import deepcopy
 
 import pandas as pd
 import pytest
@@ -28,6 +30,14 @@ def train_simple_classification_model(model):
     return model, x
 
 
+def train_simple_big_classification_model(model):
+    x, y = load_breast_cancer(return_X_y=True, as_frame=True)
+    model.fit(x, y)
+    x = pd.concat([x, deepcopy(x), deepcopy(x), deepcopy(x), deepcopy(x), deepcopy(x)])
+    x = x.reset_index(drop=True)
+    return model, x
+
+
 def train_simple_regression_model(model):
     x, y = load_diabetes(return_X_y=True, as_frame=True)
     model.fit(x, y)
@@ -38,6 +48,11 @@ def train_simple_regression_model(model):
 @pytest.fixture
 def random_forest_classifier_and_data():
     return train_simple_classification_model(RandomForestClassifier())
+
+
+@pytest.fixture
+def random_forest_classifier_and_large_data():
+    return train_simple_big_classification_model(RandomForestClassifier())
 
 
 @pytest.fixture
@@ -136,8 +151,28 @@ def extra_trees_calibrated_classifier_and_data():
 
 
 @pytest.fixture
+def random_forest_calibrated_classifier_and_data():
+    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=RandomForestClassifier(), cv=3))
+
+
+@pytest.fixture
 def xgboost_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=XGBClassifier(n_jobs=1)))
+    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=XGBClassifier(n_jobs=1), cv=3))
+
+
+@pytest.fixture
+def gradient_boosting_calibrated_classifier_and_data():
+    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=GradientBoostingClassifier(), cv=3))
+
+
+@pytest.fixture
+def log_reg_calibrated_classifier_and_data():
+    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=LogisticRegression(), cv=3))
+
+
+@pytest.fixture
+def lgbm_calibrated_classifier_and_data():
+    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=LGBMClassifier(), cv=3))
 
 
 def test_parallel_shap_accuracy_classification(random_forest_classifier_and_data):
@@ -164,9 +199,29 @@ def test_parallel_shap_accuracy_regression(extra_trees_regressor_and_data):
     assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
 
 
+def test_parallel_speed(random_forest_classifier_and_large_data):
+    model, x_df = random_forest_classifier_and_large_data
+    parallel_start_time = time.time()
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
+    parallel_run_time = time.time() - parallel_start_time
+    non_parallel_start_time = time.time()
+    explainer = shap.TreeExplainer(model)
+    _ = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
+    non_parallel_run_time = time.time() - non_parallel_start_time
+    assert parallel_run_time < non_parallel_run_time
+
+
 def test_classification_random_forest_model(random_forest_classifier_and_data):
     model, x_df = random_forest_classifier_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_classification_random_forest_model_with_n_jobs_to_1(random_forest_classifier_and_data):
+    model, x_df = random_forest_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, n_jobs=1)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -323,9 +378,33 @@ def test_kernel_shap_regression(gradient_boosting_regressor_and_data):
     assert isinstance(shap_expected_value, float)
 
 
+def test_kernel_shap_regression_linear(lasso_regressor_and_data):
+    model, x_df = lasso_regressor_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
 def test_kernel_shap_classification(extra_trees_classifier_and_data):
     model, x_df = extra_trees_classifier_and_data
     x_df = x_df.head(10)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_calibrated_extra_trees_model_with_kernel(extra_trees_calibrated_classifier_and_data):
+    model, x_df = extra_trees_calibrated_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_calibrated_xgboost_model_with_kernel(xgboost_calibrated_classifier_and_data):
+    model, x_df = xgboost_calibrated_classifier_and_data
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
@@ -340,17 +419,33 @@ def test_calibrated_extra_trees_model(extra_trees_calibrated_classifier_and_data
     assert isinstance(shap_expected_value, float)
 
 
-def test_calibrated_extra_trees_model_with_kernel(extra_trees_calibrated_classifier_and_data):
-    model, x_df = extra_trees_calibrated_classifier_and_data
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+def test_calibrated_xgboost_model(xgboost_calibrated_classifier_and_data):
+    model, x_df = xgboost_calibrated_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
 
 
-def test_calibrated_xgboost_model(xgboost_calibrated_classifier_and_data):
-    model, x_df = xgboost_calibrated_classifier_and_data
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+def test_calibrated_lgbm_model(lgbm_calibrated_classifier_and_data):
+    model, x_df = lgbm_calibrated_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_calibrated_gradient_boosting_model(gradient_boosting_calibrated_classifier_and_data):
+    model, x_df = gradient_boosting_calibrated_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
+
+
+def test_calibrated_log_reg_model(log_reg_calibrated_classifier_and_data):
+    model, x_df = log_reg_calibrated_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -374,8 +469,8 @@ def test_produce_shap_values_and_summary_plots_lightgbm_classifier(lightgbm_clas
     assert os.path.exists('lgb_output/plots/shap_values_dot.png')
 
 
-def test_produce_shap_values_and_summary_plots_calibrated_classifier(extra_trees_calibrated_classifier_and_data):
-    model, x_df = extra_trees_calibrated_classifier_and_data
+def test_produce_shap_values_and_summary_plots_calibrated_classifier(random_forest_calibrated_classifier_and_data):
+    model, x_df = random_forest_calibrated_classifier_and_data
     produce_shap_values_and_summary_plots(model, x_df, 'cc_output')
     assert os.path.exists('cc_output/plots/shap_values_dot.png')
 

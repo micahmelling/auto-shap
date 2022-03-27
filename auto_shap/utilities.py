@@ -5,6 +5,9 @@ from functools import partial
 import numpy as np
 import pandas as pd
 
+from auto_shap.config import (AMBIGUOUS_REGRESSION_MODEL_NAMES,
+                              LINEAR_MODEL_NAMES, TREE_MODEL_NAMES)
+
 
 def make_directories_if_not_exists(directories_list: list):
     """
@@ -15,6 +18,44 @@ def make_directories_if_not_exists(directories_list: list):
     for directory in directories_list:
         if not os.path.exists(directory):
             os.makedirs(directory)
+
+
+def determine_model_qualities(model: callable, linear_model: bool = None, tree_model: bool = None,
+                              boosting_model: bool = None, calibrated_model: bool = None,
+                              regression_model: bool = False) -> tuple:
+    """
+    Determines the qualities of a model. That is, if not defined, determines if the model is one of the following in a
+    Boolean nature:
+    - linear model
+    - tree model
+    - boosting model
+    - calibrated model
+    - regression modeling
+
+    If the model is a CalibratedClassifierCV, the first base_estimator is used to determine model qualities.
+
+    :param model: fitted model
+    :param linear_model: Boolean of whether model is a linear model, which would employ Linear SHAP
+    :param tree_model: Boolean of whether model is a tree-based model, which would employ Tree SHAP
+    :param boosting_model: Boolean of whether or not the explainer is for a boosting model
+    :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
+    :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
+    classification model
+    :returns: Booleans for calibrated_model, linear_model, tree_model, boosting_model, regression_model
+    """
+    if not calibrated_model:
+        calibrated_model = determine_if_name_in_object('calibrated', model)
+    if calibrated_model:
+        model = model.calibrated_classifiers_[0].base_estimator
+    if not linear_model:
+        linear_model = determine_if_any_name_in_object(LINEAR_MODEL_NAMES, model)
+    if not tree_model:
+        tree_model = determine_if_any_name_in_object(TREE_MODEL_NAMES, model)
+    if not boosting_model:
+        boosting_model = determine_if_any_name_in_object(['boost', 'gbm'], model)
+    if not regression_model:
+        regression_model = determine_if_regression_model(AMBIGUOUS_REGRESSION_MODEL_NAMES, model)
+    return calibrated_model, linear_model, tree_model, boosting_model, regression_model
 
 
 def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: bool,
@@ -56,13 +97,13 @@ def set_n_jobs(n_jobs: int, x_df: pd.DataFrame) -> int:
     return n_jobs
 
 
-def run_parallel_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: bool, regression_model: bool,
-                                linear_model: bool, n_jobs: int = None) -> np.array:
+def run_shap_explainer_with_n_jobs(x_df: pd.DataFrame, explainer: callable, boosting_model: bool,
+                                   regression_model: bool, linear_model: bool, n_jobs: int = None) -> np.array:
     """
     Splits x_df into evenly-split partitions based on the n_jobs parameter. If n_jobs is not specified, the max number
     of CPUs is used. If n_jobs is set to a higher amount than the number of observations in x_df, n_jobs is rebalanced
-    to match the length of x_df.Then, the SHAP explainer object is run in parallel on each subset of x_df. The results
-    are combined into a single object.
+    to match the length of x_df. Then, the SHAP explainer object is run in parallel on each subset of x_df. The results
+    are combined into a single object. If n_jobs is set to 1, then no parallel processing is used.
 
     :param x_df: x dataframe
     :param explainer: SHAP explainer object
@@ -72,14 +113,17 @@ def run_parallel_shap_explainer(x_df: pd.DataFrame, explainer: callable, boostin
     :param linear_model: Boolean of whether or not the explainer is for a linear model
     :param n_jobs: number of cores to use when processing
     """
-    n_jobs = set_n_jobs(n_jobs, x_df)
-    array_split = np.array_split(x_df, n_jobs)
-    shap_fn = partial(run_shap_explainer, explainer=explainer, boosting_model=boosting_model,
-                      regression_model=regression_model, linear_model=linear_model)
-    with mp.Pool(processes=n_jobs) as pool:
-        result = pool.map(shap_fn, array_split)
-    result = np.concatenate(result)
-    return result
+    if n_jobs != 1:
+        n_jobs = set_n_jobs(n_jobs, x_df)
+        array_split = np.array_split(x_df, n_jobs)
+        shap_fn = partial(run_shap_explainer, explainer=explainer, boosting_model=boosting_model,
+                          regression_model=regression_model, linear_model=linear_model)
+        with mp.Pool(processes=n_jobs) as pool:
+            result = pool.map(shap_fn, array_split)
+        result = np.concatenate(result)
+        return result
+    else:
+        return run_shap_explainer(x_df, explainer, boosting_model, regression_model, linear_model)
 
 
 def make_shap_df(shap_values: np.array, x_df: pd.DataFrame) -> pd.DataFrame:

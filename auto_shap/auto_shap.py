@@ -6,13 +6,9 @@ import numpy as np
 import pandas as pd
 import shap
 
-from auto_shap.config import (AMBIGUOUS_REGRESSION_MODEL_NAMES,
-                              LINEAR_MODEL_NAMES, TREE_MODEL_NAMES)
-from auto_shap.utilities import (determine_if_any_name_in_object,
-                                 determine_if_name_in_object,
-                                 determine_if_regression_model,
+from auto_shap.utilities import (determine_model_qualities,
                                  make_directories_if_not_exists, make_shap_df,
-                                 run_parallel_shap_explainer,
+                                 run_shap_explainer_with_n_jobs,
                                  save_expected_value)
 
 
@@ -78,7 +74,7 @@ def produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFram
         explainer = shap.KernelExplainer(model.predict, x_df)
     else:
         explainer = shap.KernelExplainer(model.predict_proba, x_df)
-    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model, linear_model, n_jobs)
+    shap_values = run_shap_explainer_with_n_jobs(x_df, explainer, boosting_model, regression_model, linear_model, n_jobs)
     shap_expected_value = get_shap_expected_value(explainer, boosting_model, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
@@ -108,7 +104,7 @@ def produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame,
     and a dataframe of global SHAP values
     """
     explainer = shap.TreeExplainer(model)
-    shap_values = run_parallel_shap_explainer(x_df, explainer, boosting_model, regression_model, False, n_jobs)
+    shap_values = run_shap_explainer_with_n_jobs(x_df, explainer, boosting_model, regression_model, False, n_jobs)
     shap_expected_value = get_shap_expected_value(explainer, boosting_model, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
@@ -136,7 +132,7 @@ def produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFram
     and a dataframe of global SHAP values
     """
     explainer = shap.LinearExplainer(model, x_df)
-    shap_values = run_parallel_shap_explainer(x_df, explainer, False, regression_model, True, n_jobs)
+    shap_values = run_shap_explainer_with_n_jobs(x_df, explainer, False, regression_model, True, n_jobs)
     shap_expected_value = get_shap_expected_value(explainer, False, linear_model)
     global_shap_df = generate_shap_global_values(shap_values, x_df)
     if return_df:
@@ -175,13 +171,13 @@ def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.Data
     for calibrated_classifier in model.calibrated_classifiers_:
         if linear_model:
             shap_values, shap_expected_value, _ = produce_shap_output_with_linear_explainer(
-                calibrated_classifier.base_estimator, x_df, regression_model=False, linear_model=linear_model,
+                calibrated_classifier.base_estimator, x_df, regression_model=False, linear_model=True,
                 return_df=False, n_jobs=n_jobs
             )
         else:
             shap_values, shap_expected_value, _ = produce_shap_output_with_tree_explainer(
                 calibrated_classifier.base_estimator, x_df, boosting_model, regression_model=False,
-                linear_model=linear_model, return_df=False, n_jobs=n_jobs
+                linear_model=False, return_df=False, n_jobs=n_jobs
             )
         shap_values_list.append(shap_values)
         shap_expected_list.append(shap_expected_value)
@@ -216,13 +212,16 @@ def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: boo
     if use_kernel:
         return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model, linear_model,
                                                          n_jobs=n_jobs)
-    if linear_model:
-        return produce_shap_output_with_linear_explainer(model, x_df, regression_model, True, n_jobs=n_jobs)
-    if tree_model:
-        return produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regression_model, False,
+    else:
+        if calibrated_model:
+            return produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model,
+                                                                 n_jobs=n_jobs)
+        else:
+            if tree_model:
+                return produce_shap_output_with_tree_explainer(model, x_df, boosting_model, regression_model, False,
                                                        n_jobs=n_jobs)
-    if calibrated_model:
-        return produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model, n_jobs=n_jobs)
+            elif linear_model:
+                return produce_shap_output_with_linear_explainer(model, x_df, regression_model, True, n_jobs=n_jobs)
 
 
 def generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_type: str, save_path: str,
@@ -272,16 +271,9 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
     """
-    if not linear_model:
-        linear_model = determine_if_any_name_in_object(LINEAR_MODEL_NAMES, model)
-    if not tree_model:
-        tree_model = determine_if_any_name_in_object(TREE_MODEL_NAMES, model)
-    if not boosting_model:
-        boosting_model = determine_if_any_name_in_object(['boost', 'gbm'], model)
-    if not calibrated_model:
-        calibrated_model = determine_if_name_in_object('calibrated', model)
-    if not regression_model:
-        regression_model = determine_if_regression_model(AMBIGUOUS_REGRESSION_MODEL_NAMES, model)
+    calibrated_model, linear_model, tree_model, boosting_model, regression_model = determine_model_qualities(
+        model, linear_model, tree_model, boosting_model, calibrated_model, regression_model
+    )
     shap_values_df, shap_expected_value, global_shap_df = produce_raw_shap_values(
         model, x_df, use_kernel, linear_model, tree_model, calibrated_model, boosting_model, regression_model, n_jobs
     )

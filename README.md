@@ -5,22 +5,22 @@ The auto-shap library is your best friend when calculating SHAP values!
 state-of-the-art technique for explaining model predictions.
 Model explanation can be valuable in many regards. For one, understanding
 how a model devised a prediction can engender trust. Conversely, it could
-inform us if our model is using features in a nonsensical way. Likewise,
-feature importance scores can be useful for external presentations. For
-further details on SHAP values and their underlying mathematical properties,
-see the hyperlink at the beginning of this paragraph.
+inform us if our model is using features in a nonsensical or unrealistic way,
+potentially helping us to catch leakage issues. Likewise, feature importance
+scores can be useful for external presentations. For further details on SHAP
+values and their underlying mathematical properties, see the hyperlink at the
+beginning of this paragraph.
 
 The Python [SHAP library](https://shap.readthedocs.io/en/latest/index.html)
 is often the go-to source for computing SHAP values. It's handy and can
 explain virtually any model we would like. However, we must be aware of the
 following when using the library.
 
-* The correct type of explainer class must be used. For example, if we
-have a Random Forest model, we should use the TreeExplainer.
-* Our code for implementing SHAP values will be slightly different when we
-have a regression model instead of a classifier.
+* The correct type of explainer class must be declared.
+* Our code for extracting SHAP values will be slightly different when we
+have a regression model compared to when we have a classifier.
 * SHAP cannot natively handel scikit-learn's CalibratedClassifierCV.
-* Boosting models have distinct behavior when it comes to SHAP values.
+* Boosting models often have distinct behavior when it comes to SHAP values.
 
 Likewise, the native SHAP library does not take advantage of multiprocessing.
 The auto-shap library will run SHAP calculations in parallel to speed them
@@ -28,8 +28,8 @@ up!
 
 At a high level, the library will automatically detect the type of model
 that has been trained (regressor vs. classifier, boosting model vs. other
-model, etc) and apply the correct handling. If your model is not accurately
-identified, it's easy to specify how it should be handled.
+model, etc.) and apply the correct handling. If your model is not accurately
+identified by the library, it's easy to specify how it should be handled.
 
 ## Installation
 The easiest way to install the library is with pip.
@@ -52,10 +52,10 @@ $ python3
 ```
 
 There you have it!
-* A dataframe of SHAP values for every row in x.
-* The expected values of the SHAP explainer (in the above, the average
-predicted positive probability)
-* A dataframe of the global SHAP values covering every feature in x.
+* A dataframe of SHAP values for every row in the x predictors dataframe.
+* The expected value of the SHAP explainer (in the above, the average
+predicted positive probability).
+* A dataframe of the global SHAP values covering every feature in the x dataframe.
 
 What's more, you can change to a completely new model without changing any
 of the auto-shap code.
@@ -70,10 +70,11 @@ $ python3
 >>> model.fit(x, y)
 >>> shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
 ```
-auto-shap detected this was a boosted regressor and handled appropriately.
+auto-shap detected this was a boosted regressor and handled such a case
+appropriately.
 
 ## Saving Output
-The library also provides a helper function for saving output files and plots to a
+The library also provides a helper function for saving output and plots to a
 local directory.
 
 ```buildoutcfg
@@ -86,39 +87,44 @@ $ python3
 >>> model.fit(x, y)
 >>> produce_shap_values_and_summary_plots(model=model, x_df=x_df, save_path='shap_output')
 ```
-The above code will save three files into a files subdirectory in the specified
-shap_output directory.
+The above code will save three files into a "files" subdirectory in the specified
+save_path directory.
 * A csv of SHAP values for every row in x_df.
-* A txt file containing expected values of the SHAP explainer.
+* A txt file containing the expected value of the SHAP explainer.
 * A csv of the global SHAP values covering every feature in x_df.
 
-Likewise, two plots will be saved into a plots subdirectory.
+Likewise, two plots will be saved into a "plots" subdirectory.
 * A bar plot of the top global SHAP values.
 * A dot plot of SHAP values to show the influence of features across observations
 in x_df.
 
 ## Multiprocessing Support
-By default, the maximum number of cores are used to calculate SHAP values in
-parallel. To manually set the number of cores to use, you can do the following.
+By default, the maximum number of cores available is used to calculate SHAP
+values in parallel. To manually set the number of cores to use, you can do
+the following.
 
 ```buildoutcfg
 >>> generate_shap_values(model, x_df, n_jobs=4)
 ```
 
+For small datasets, multiprocessing may not add much in terms of performance and
+could even slow down computation times due to the overhead of spinning up a
+multiprocessing pool. To turn off multiprocessing, set n_jobs=1.
+
 ## Overriding Auto-Detection
-Using generate_shap_values or produce_shap_values_and_summary_plots will leverage
-auto-detection of certain model characteristics. Those are as follows, which are
-all controlled with Booleans:
+Using generate_shap_values() or produce_shap_values_and_summary_plots() will
+leverage auto-detection of certain model characteristics. Those characteristics
+are as follows, which are all controlled with Booleans:
 * linear_model
 * tree_model
 * boosting_model
 * calibrated_model
 * regression_model
 
-Though auto-shap will handle most common models, it is not yet tuned to handle
-every possible type of model. In some cases, then, you can have to manually set
-one or more of the above booleans in the function calls. At present and at minimum,
-auto-shap will work with the following models.
+Though auto-shap will natively handle most common models, it is not yet
+tuned to handle every possible type of model. Therefore, in some cases, you may
+have to manually set one or more of the above Booleans in the function calls.
+At present and at minimum, auto-shap will work with the following models.
 * XGBClassifier
 * XGBRegressor
 * CatBoostClassifier
@@ -148,9 +154,9 @@ CalibratedClassifierCV, please go to the
 Since we are extracting only the SHAP values for the base estimator, we will miss
 some detail since we are not using the full calibrator pair. Therefore, while
 these SHAP values will still be instructive, they will not be perfectly precise.
-For more precision, we would need to use the Kernel Explainer. The main benefit of
-the approach in this function is computational as the Kernel Explainer can be
-quite slow.
+For more precision, we would need to use the KernelExplainer. The main benefit of
+averaging the results of the base estimators is computational as the
+KernelExplainer can be quite slow.
 
 ## Other Potentially Useful Functionality
 The generate_shap_values function relies on a few underlying functions that can
