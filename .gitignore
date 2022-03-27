@@ -3,6 +3,8 @@
 __pycache__/
 .pytest_cache/
 catboost_info/
+auto_shap.egg-info/
+build/
 venv/
 *.txt
 !requirements.txt
