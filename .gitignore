@@ -6,6 +6,7 @@ catboost_info/
 venv/
 *.txt
 !requirements.txt
+!LICENSE.txt
 *.csv
 *.png
 scratch.py
