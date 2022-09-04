@@ -67,7 +67,7 @@ $ python3
 >>> x, y = load_breast_cancer(return_X_y=True, as_frame=True)
 >>> model = ExtraTreesClassifier()
 >>> model.fit(x, y)
->>> shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+>>> shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x)
 ```
 
 There you have it!
@@ -87,7 +87,7 @@ $ python3
 >>> x, y = load_diabetes(return_X_y=True, as_frame=True)
 >>> model = GradientBoostingRegressor()
 >>> model.fit(x, y)
->>> shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+>>> shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x)
 ```
 auto-shap detected this was a boosted regressor and handled such a case
 appropriately.
@@ -104,7 +104,7 @@ $ python3
 >>> x, y = load_diabetes(return_X_y=True, as_frame=True)
 >>> model = GradientBoostingRegressor()
 >>> model.fit(x, y)
->>> produce_shap_values_and_summary_plots(model=model, x_df=x_df, save_path='shap_output')
+>>> produce_shap_values_and_summary_plots(model=model, x_df=x, save_path='shap_output')
 ```
 The above code will save three files into a "files" subdirectory in the specified
 save_path directory.
