@@ -32,8 +32,11 @@ def get_shap_expected_value(explainer: callable, boosting_model: bool, linear_mo
     else:
         try:
             expected_value = explainer.expected_value[1]
-        except IndexError:
-            expected_value = explainer.expected_value[0]
+        except Exception as e:
+            if str(e) == 'index 1 is out of bounds for axis 0 with size 1':
+                expected_value = explainer.expected_value[0]
+            else:
+                expected_value = explainer.expected_value
     return expected_value
 
 
@@ -190,7 +193,7 @@ def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.Data
 
 def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: bool, linear_model: bool, tree_model: bool,
                             calibrated_model: bool, boosting_model: bool, regression_model: bool,
-                            n_jobs: int = None) -> tuple:
+                            voting_or_stacking_model: bool = False, n_jobs: int = None) -> tuple:
     """
     Produces SHAP output for every observation in x_df: SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel to increase speed.
@@ -205,11 +208,15 @@ def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: boo
     :param boosting_model: Boolean of whether or not the explainer is for a boosting model
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :param n_jobs: number of cores to use when processing
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
     """
     if use_kernel:
+        return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model, linear_model,
+                                                         n_jobs=n_jobs)
+    if voting_or_stacking_model:
         return produce_shap_output_with_kernel_explainer(model, x_df, boosting_model, regression_model, linear_model,
                                                          n_jobs=n_jobs)
     else:
@@ -246,7 +253,8 @@ def generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_t
 
 def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool = None, tree_model: bool = None,
                          boosting_model: bool = None, calibrated_model: bool = None, regression_model: bool = False,
-                         use_kernel: bool = False, n_jobs: int = None) -> tuple:
+                         voting_or_stacking_model: bool = False, use_kernel: bool = False,
+                         n_jobs: int = None) -> tuple:
     """
     Generates SHAP values for the provided model and x_df. Three pieces of output are generated: dataframe of SHAP
     values for every row in x_df, the expected value from the SHAP explainer, and a dataframe of global SHAP values.
@@ -254,7 +262,8 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     to automatically detect if the model is a boosting model, which can require some special handling. Likewise, it
     will work to automatically detect if the model is for classification or regression, which again requires some
     subtle handling between the two. Additionally, if the model is a CalibratedClassifierCV, it will detect and
-    handle appropriately. Lastly, the user can specify any of these booleans if needed or useful. Related, the user
+    handle appropriately. Further, if the model is a Voting or Stacking ensemble, the kernel explainer will
+    automatically be selected. Lastly, the user can specify any of these booleans if needed or useful. Related, the user
     can specify if they want to use Kernel SHAP, which is appropriate in certain cases but is computationally expensive.
     If using Kernel SHAP, it's recommended to use a sample of x_df.
 
@@ -266,16 +275,20 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :param use_kernel: Boolean of whether or not to use Kernel SHAP
     :param n_jobs: number of cores to use when processing
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
     """
-    calibrated_model, linear_model, tree_model, boosting_model, regression_model = determine_model_qualities(
-        model, linear_model, tree_model, boosting_model, calibrated_model, regression_model
-    )
+    calibrated_model, linear_model, tree_model, boosting_model, regression_model, voting_or_stacking_model = \
+        determine_model_qualities(
+            model, linear_model, tree_model, boosting_model, calibrated_model, regression_model,
+            voting_or_stacking_model
+        )
     shap_values_df, shap_expected_value, global_shap_df = produce_raw_shap_values(
-        model, x_df, use_kernel, linear_model, tree_model, calibrated_model, boosting_model, regression_model, n_jobs
+        model, x_df, use_kernel, linear_model, tree_model, calibrated_model, boosting_model, regression_model,
+        voting_or_stacking_model, n_jobs
     )
     return shap_values_df, shap_expected_value, global_shap_df
 
@@ -283,8 +296,8 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
 def produce_shap_values_and_summary_plots(model: callable, x_df: pd.DataFrame, save_path: str,
                                           linear_model: bool = None,  tree_model: bool = None,
                                           boosting_model: bool = None, calibrated_model: bool = None,
-                                          regression_model: bool = None, use_kernel: bool = None,
-                                          file_prefix: str = None, n_jobs: int = None):
+                                          regression_model: bool = None, voting_or_stacking_model: bool = False,
+                                          use_kernel: bool = None, file_prefix: str = None, n_jobs: int = None) -> None:
     """
     Produces SHAP values for x_df and writes associated diagnostics locally. The following output is saved in
     save_path in appropriate subdirectories: SHAP values for every row in x_df, global SHAP values for every feature
@@ -308,6 +321,7 @@ def produce_shap_values_and_summary_plots(model: callable, x_df: pd.DataFrame, s
     :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :param use_kernel: Boolean of whether or not to use Kernel SHAP
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
@@ -324,7 +338,8 @@ def produce_shap_values_and_summary_plots(model: callable, x_df: pd.DataFrame, s
         ]
     )
     shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(
-        model, x_df, linear_model, tree_model, boosting_model, calibrated_model, regression_model, use_kernel, n_jobs
+        model, x_df, linear_model, tree_model, boosting_model, calibrated_model, regression_model,
+        voting_or_stacking_model, use_kernel, n_jobs
     )
     shap_values_df.to_csv(os.path.join(save_file_path, 'local_shap_values.csv'), index=False)
     global_shap_df.to_csv(os.path.join(save_file_path, 'global_shap_values.csv'), index=False)

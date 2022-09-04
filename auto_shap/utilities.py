@@ -2,11 +2,13 @@ import multiprocessing as mp
 import os
 from functools import partial
 
+import _pickle
 import numpy as np
 import pandas as pd
 
 from auto_shap.config import (AMBIGUOUS_REGRESSION_MODEL_NAMES,
-                              LINEAR_MODEL_NAMES, TREE_MODEL_NAMES)
+                              LINEAR_MODEL_NAMES, TREE_MODEL_NAMES,
+                              VOTING_AND_STACKING_MODEL_NAMES)
 
 
 def make_directories_if_not_exists(directories_list: list):
@@ -22,7 +24,7 @@ def make_directories_if_not_exists(directories_list: list):
 
 def determine_model_qualities(model: callable, linear_model: bool = None, tree_model: bool = None,
                               boosting_model: bool = None, calibrated_model: bool = None,
-                              regression_model: bool = False) -> tuple:
+                              regression_model: bool = False, voting_or_stacking_model: bool = False) -> tuple:
     """
     Determines the qualities of a model. That is, if not defined, determines if the model is one of the following in a
     Boolean nature:
@@ -30,9 +32,13 @@ def determine_model_qualities(model: callable, linear_model: bool = None, tree_m
     - tree model
     - boosting model
     - calibrated model
-    - regression modeling
+    - regression model
+    - stacking model
+    - voting model
 
     If the model is a CalibratedClassifierCV, the first base_estimator is used to determine model qualities.
+
+    If the model is a Voting or Stacking model, the kernel explainer is automatically used.
 
     :param model: fitted model
     :param linear_model: Boolean of whether model is a linear model, which would employ Linear SHAP
@@ -41,6 +47,7 @@ def determine_model_qualities(model: callable, linear_model: bool = None, tree_m
     :param calibrated_model: Boolean of whether or not the model is a CalibratedClassifierCV
     :param regression_model: Boolean of whether or not this is a regression model; if not, it's assumed this is a
     classification model
+    :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :returns: Booleans for calibrated_model, linear_model, tree_model, boosting_model, regression_model
     """
     if not calibrated_model:
@@ -55,7 +62,9 @@ def determine_model_qualities(model: callable, linear_model: bool = None, tree_m
         boosting_model = determine_if_any_name_in_object(['boost', 'gbm'], model)
     if not regression_model:
         regression_model = determine_if_regression_model(AMBIGUOUS_REGRESSION_MODEL_NAMES, model)
-    return calibrated_model, linear_model, tree_model, boosting_model, regression_model
+    if not voting_or_stacking_model:
+        voting_or_stacking_model = determine_if_any_name_in_object(VOTING_AND_STACKING_MODEL_NAMES, model)
+    return calibrated_model, linear_model, tree_model, boosting_model, regression_model, voting_or_stacking_model
 
 
 def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: bool,
@@ -77,7 +86,7 @@ def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: 
         else:
             return shap_values
     else:
-        return explainer.shap_values(x_df)[1]
+        return explainer.shap_values(x_df, check_additivity=False)[1]
 
 
 def set_n_jobs(n_jobs: int, x_df: pd.DataFrame) -> int:
@@ -118,10 +127,15 @@ def run_shap_explainer_with_n_jobs(x_df: pd.DataFrame, explainer: callable, boos
         array_split = np.array_split(x_df, n_jobs)
         shap_fn = partial(run_shap_explainer, explainer=explainer, boosting_model=boosting_model,
                           regression_model=regression_model, linear_model=linear_model)
-        with mp.Pool(processes=n_jobs) as pool:
-            result = pool.map(shap_fn, array_split)
-        result = np.concatenate(result)
-        return result
+        try:
+            with mp.Pool(processes=n_jobs) as pool:
+                result = pool.map(shap_fn, array_split)
+            result = np.concatenate(result)
+            return result
+        except _pickle.PicklingError:
+            return run_shap_explainer(x_df, explainer=explainer, boosting_model=boosting_model,
+                                      regression_model=regression_model, linear_model=linear_model)
+
     else:
         return run_shap_explainer(x_df, explainer, boosting_model, regression_model, linear_model)
 

@@ -3,7 +3,11 @@ LINEAR_MODEL_NAMES = [
 ]
 
 TREE_MODEL_NAMES = [
-    'randomforest', 'extratrees', 'decisiontree', 'boost', 'gbm'
+    'randomforest', 'extratrees', 'decisiontree', 'boost', 'gbm',
+]
+
+VOTING_AND_STACKING_MODEL_NAMES = [
+    'voting', 'stacking',
 ]
 
 AMBIGUOUS_REGRESSION_MODEL_NAMES = [

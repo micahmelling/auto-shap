@@ -19,12 +19,31 @@ following when using the library.
 * The correct type of explainer class must be declared.
 * Our code for extracting SHAP values will be slightly different when we
 have a regression model compared to when we have a classifier.
-* SHAP cannot natively handel scikit-learn's CalibratedClassifierCV.
+* SHAP cannot natively handel scikit-learn's CalibratedClassifierCV, voting models,
+or stacking models.
 * Boosting models often have distinct behavior when it comes to SHAP values.
 
 Likewise, the native SHAP library does not take advantage of multiprocessing.
 The auto-shap library will run SHAP calculations in parallel to speed them
-up!
+up when possible! When we are using a Tree or Linear Explainer, we can calculate our
+SHAP values in parallel without issue. The results will be the same compared
+to when we run our calculations on a single core. Such situations are heavily
+tested in tests/tests.py in the
+[GitHub Repo](https://github.com/micahmelling/auto-shap). However, the situation
+is slightly different when we are using the KernelExplainer. The KernelExplainer
+is not deterministic, even when we are not using parallel processing. In fact,
+especially on small datasets, if we re-run the KernelExplain back-to-back on the
+same data with the same model, we won't get the exact same feature-level attribution,
+though the total attribution will stay the same (which is tested in tests/tests.py).
+The foregoing points can be substantiated by looking at the
+[SHAP documentation](https://shap-lrjball.readthedocs.io/en/latest/generated/shap.KernelExplainer.html#shap.KernelExplainer.shap_values).
+[This article](https://edden-gerber.github.io/shapley-part-2/) discusses the deterministic
+nature of certain SHAP calculations.
+In auto-shap, we still employ multiprocessing when using the KernelExplainer, knowing
+that our results would still not be perfectly deterministic even on a single core,
+and by using multiprocessing, we get a nice speed improvement. Additionally, there
+is a pickle error when using multiprocessing with a scikit-learn Voting or
+Stacking model with SHAP. Therefore, no multiprocessing is used in such cases.
 
 At a high level, the library will automatically detect the type of model
 that has been trained (regressor vs. classifier, boosting model vs. other
@@ -120,6 +139,7 @@ are as follows, which are all controlled with Booleans:
 * boosting_model
 * calibrated_model
 * regression_model
+* voting_or_stacking_model
 
 Though auto-shap will natively handle most common models, it is not yet
 tuned to handle every possible type of model. Therefore, in some cases, you may
@@ -144,6 +164,10 @@ At present and at minimum, auto-shap will work with the following models.
 * Ridge
 * DecisionTreeClassifier
 * DecisionTreeRegressor
+* VotingClassifier
+* VotingRegressor
+* StackingClassifier
+* StackingRegressor
 
 ## CalibratedClassifierCV
 The auto-shap library provides support for scikit-learn's CalibratedClassifierCV.
@@ -159,11 +183,19 @@ averaging the results of the base estimators is computational as the
 KernelExplainer can be quite slow.
 
 To use KernelShap, one can do the following. More or less, this will ignore the
-auto-generated model qualities. 
+auto-generated model qualities.
 
 ```buildoutcfg
 >>> generate_shap_values(model, x_df, use_kernel=True)
 ```
+
+## Voting and Stacking Models
+If auto-shap detects a voting or stacking model, it will automatically use the
+Kernel Explainer. The Kernel SHAP is computationally expensive, so you may
+want to use a sample of x_df. Additionally, there is a pickle error when using
+multiprocessing with a scikit-learn Voting or Stacking model with SHAP. Therefore, no
+multiprocessing is used in such cases, which is more motivation for subsetting
+x_df.
 
 ## Other Potentially Useful Functionality
 The generate_shap_values function relies on a few underlying functions that can
@@ -183,14 +215,14 @@ produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame, boo
                                         return_df: bool = True, n_jobs: int = None) -> tuple
 
 produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFrame, regression_model: bool,
-                                          inear_model: bool, return_df: bool = True, n_jobs: int = None) -> tuple
+                                          linear_model: bool, return_df: bool = True, n_jobs: int = None) -> tuple
 
 produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                               linear_model: bool, n_jobs: int = None) -> tuple
 
 produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: bool, linear_model: bool, tree_model: bool,
                         calibrated_model: bool, boosting_model: bool, regression_model: bool,
-                        n_jobs: int = None) -> tuple
+                        voting_or_stacking_model: bool, n_jobs: int = None) -> tuple
 
 
 generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_type: str, save_path: str,
