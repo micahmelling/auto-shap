@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="auto_shap",
-    version="0.1.1",
+    version="0.2.0",
     author="Micah Melling",
     author_email="micahmelling@gmail.com",
     description="Calculate SHAP values in parallel and automatically detect what explainer to use",

@@ -21,7 +21,8 @@ following when using the library.
 have a regression model compared to when we have a classifier.
 * SHAP cannot natively handel scikit-learn's CalibratedClassifierCV, voting models,
 or stacking models.
-* Boosting models often have distinct behavior when it comes to SHAP values.
+* Boosting models often have distinct behavior when it comes to SHAP values. For
+boosting models, auto-shap will employ the SHAP settings to return probabilities.
 
 Likewise, the native SHAP library does not take advantage of multiprocessing.
 The auto-shap library will run SHAP calculations in parallel to speed them
@@ -39,10 +40,14 @@ The foregoing points can be substantiated by looking at the
 [SHAP documentation](https://shap-lrjball.readthedocs.io/en/latest/generated/shap.KernelExplainer.html#shap.KernelExplainer.shap_values).
 [This article](https://edden-gerber.github.io/shapley-part-2/) discusses the deterministic
 nature of certain SHAP calculations.
+
 In auto-shap, we still employ multiprocessing when using the KernelExplainer, knowing
 that our results would still not be perfectly deterministic even on a single core,
-and by using multiprocessing, we get a nice speed improvement. Additionally, there
-is a pickle error when using multiprocessing with a scikit-learn Voting or
+and by using multiprocessing, we get a nice speed improvement. To turn off
+multiprocessing in this case if desired, set n_jobs=1 when calling
+generate_shap_values(). See more details on this function call below.
+
+Additionally, there is a pickle error when using multiprocessing with a scikit-learn Voting or
 Stacking model with SHAP. Therefore, no multiprocessing is used in such cases.
 
 At a high level, the library will automatically detect the type of model
@@ -168,6 +173,9 @@ At present and at minimum, auto-shap will work with the following models.
 * VotingRegressor
 * StackingClassifier
 * StackingRegressor
+
+For models cannot detect model qualities, it will fallback to using the
+Kernel Explainer, which is model agnostic.
 
 ## CalibratedClassifierCV
 The auto-shap library provides support for scikit-learn's CalibratedClassifierCV.

@@ -3,6 +3,7 @@ import shutil
 import time
 from copy import deepcopy
 
+import numpy as np
 import pandas as pd
 import pytest
 import shap
@@ -18,11 +19,14 @@ from sklearn.ensemble import (ExtraTreesClassifier, ExtraTreesRegressor,
                               VotingClassifier, VotingRegressor)
 from sklearn.linear_model import (ElasticNet, Lasso, LinearRegression,
                                   LogisticRegression, Ridge)
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from xgboost import XGBClassifier, XGBRegressor
 
 from auto_shap.auto_shap import (generate_shap_values,
                                  produce_shap_values_and_summary_plots)
+
+np.random.seed(42)
 
 
 def train_simple_classification_model(model):
@@ -89,7 +93,7 @@ def catboost_classifier_and_data():
 
 @pytest.fixture
 def decision_tree_classifier_and_data():
-    return train_simple_regression_model(DecisionTreeClassifier())
+    return train_simple_classification_model(DecisionTreeClassifier())
 
 
 @pytest.fixture
@@ -201,6 +205,11 @@ def stacking_regressor_and_data():
         ('rf', RandomForestRegressor()), ('et', ExtraTreesRegressor())]))
 
 
+@pytest.fixture
+def naive_bayes_classifier_and_data():
+    return train_simple_classification_model(GaussianNB())
+
+
 def test_parallel_shap_accuracy_regression_linear(lasso_regressor_and_data):
     model, x_df = lasso_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
@@ -264,19 +273,21 @@ def test_parallel_shap_accuracy_classification_tree(random_forest_classifier_and
 def test_parallel_shap_accuracy_classification_tree_2(gradient_boosting_classifier_and_data):
     model, x_df = gradient_boosting_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
-    explainer = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
     shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
     shap_values_df = shap_values_df.sort_values(by=['sum'], ascending=True)
+    print(shap_values_parallel_df['sum'].head())
+    print(shap_values_df['sum'].head())
     assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
 
 
 def test_parallel_shap_accuracy_classification_tree_3(gradient_boosting_classifier_and_data):
     model, x_df = gradient_boosting_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
-    explainer = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
     shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
     assert shap_values_parallel_df.iloc[:, 0].equals(shap_values_df.iloc[:, 0])
     assert shap_values_parallel_df.iloc[:, 2].equals(shap_values_df.iloc[:, 2])
@@ -286,7 +297,7 @@ def test_parallel_shap_accuracy_classification_tree_3(gradient_boosting_classifi
 def test_parallel_shap_accuracy_classification_tree_4(xgboost_classifier_and_data):
     model, x_df = xgboost_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
-    explainer = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
     shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
     assert shap_values_parallel_df.iloc[:, 1].equals(shap_values_df.iloc[:, 1])
     assert shap_values_parallel_df.iloc[:, 3].equals(shap_values_df.iloc[:, 3])
@@ -297,8 +308,8 @@ def test_parallel_shap_accuracy_classification_tree_4(xgboost_classifier_and_dat
 def test_parallel_shap_accuracy_classification_tree_5(lightgbm_classifier_and_data):
     model, x_df = lightgbm_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
-    explainer = shap.TreeExplainer(model)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
+    explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
+    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
     assert shap_values_parallel_df.iloc[:, 1].equals(shap_values_df.iloc[:, 1])
     assert shap_values_parallel_df.iloc[:, 3].equals(shap_values_df.iloc[:, 3])
     assert shap_values_parallel_df.iloc[:, 4].equals(shap_values_df.iloc[:, 4])
@@ -346,7 +357,7 @@ def test_parallel_shap_accuracy_regression_tree_3(xgb_regressor_and_data):
 def test_parallel_shap_accuracy_classification_kernel(random_forest_classifier_and_data):
     model, x_df = random_forest_classifier_and_data
     x_df = x_df.head(25)
-    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
     explainer = shap.KernelExplainer(model.predict_proba, x_df)
     shap_values_df = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
@@ -361,7 +372,7 @@ def test_parallel_shap_accuracy_classification_kernel(random_forest_classifier_a
 def test_parallel_shap_accuracy_regression_kernel(random_forest_regressor_and_data):
     model, x_df = random_forest_regressor_and_data
     x_df = x_df.head(25)
-    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
     explainer = shap.KernelExplainer(model.predict, x_df)
     shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
@@ -389,7 +400,7 @@ def test_parallel_speed_kernel(random_forest_classifier_and_data):
     model, x_df = random_forest_classifier_and_data
     x_df = x_df.head(25)
     parallel_start_time = time.time()
-    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
     parallel_run_time = time.time() - parallel_start_time
     non_parallel_start_time = time.time()
     explainer = shap.KernelExplainer(model.predict_proba, x_df)
@@ -559,7 +570,7 @@ def test_regression_lgbm_model(lgbm_regressor_and_data):
 
 def test_kernel_shap_regression(gradient_boosting_regressor_and_data):
     model, x_df = gradient_boosting_regressor_and_data
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -567,7 +578,7 @@ def test_kernel_shap_regression(gradient_boosting_regressor_and_data):
 
 def test_kernel_shap_regression_linear(lasso_regressor_and_data):
     model, x_df = lasso_regressor_and_data
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -576,7 +587,7 @@ def test_kernel_shap_regression_linear(lasso_regressor_and_data):
 def test_kernel_shap_classification(extra_trees_classifier_and_data):
     model, x_df = extra_trees_classifier_and_data
     x_df = x_df.head(10)
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -585,7 +596,7 @@ def test_kernel_shap_classification(extra_trees_classifier_and_data):
 def test_calibrated_extra_trees_model_with_kernel(extra_trees_calibrated_classifier_and_data):
     model, x_df = extra_trees_calibrated_classifier_and_data
     x_df = x_df.head(10)
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -594,7 +605,7 @@ def test_calibrated_extra_trees_model_with_kernel(extra_trees_calibrated_classif
 def test_calibrated_xgboost_model_with_kernel(xgboost_calibrated_classifier_and_data):
     model, x_df = xgboost_calibrated_classifier_and_data
     x_df = x_df.head(10)
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -603,7 +614,7 @@ def test_calibrated_xgboost_model_with_kernel(xgboost_calibrated_classifier_and_
 def xgboost_classification_model_with_kernel(xgboost_classifier_and_data):
     model, x_df = xgboost_classifier_and_data
     x_df = x_df.head(10)
-    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_kernel=True)
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df, use_agnostic=True)
     assert len(shap_values_df) == len(x_df)
     assert len(global_shap_df) == len(list(x_df))
     assert isinstance(shap_expected_value, float)
@@ -676,7 +687,7 @@ def test_produce_shap_values_and_summary_plots_calibrated_classifier(random_fore
 def test_produce_shap_values_and_summary_plots_calibrated_classifier_with_kernel(extra_trees_calibrated_classifier_and_data):
     model, x_df = extra_trees_calibrated_classifier_and_data
     x_df = x_df.head(10)
-    produce_shap_values_and_summary_plots(model, x_df, 'kcc_output', use_kernel=True)
+    produce_shap_values_and_summary_plots(model, x_df, 'kcc_output', use_agnostic=True)
     assert os.path.exists('kcc_output/plots/shap_values_dot.png')
 
 
@@ -708,6 +719,14 @@ def test_produce_shap_values_and_summary_plots_stacking_regressor(stacking_regre
     model, x_df = stacking_regressor_and_data
     produce_shap_values_and_summary_plots(model, x_df, 'sr_output')
     assert os.path.exists('sr_output/plots/shap_values_dot.png')
+
+
+def test_use_agnostic_fallback(naive_bayes_classifier_and_data):
+    model, x_df = naive_bayes_classifier_and_data
+    shap_values_df, shap_expected_value, global_shap_df = generate_shap_values(model, x_df)
+    assert len(shap_values_df) == len(x_df)
+    assert len(global_shap_df) == len(list(x_df))
+    assert isinstance(shap_expected_value, float)
 
 
 @pytest.fixture(scope="session", autouse=True)
