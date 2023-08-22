@@ -729,6 +729,20 @@ def test_use_agnostic_fallback(naive_bayes_classifier_and_data):
     assert isinstance(shap_expected_value, float)
 
 
+def test_agnostic_kernel_sample_size(naive_bayes_classifier_and_data):
+    model, x_df = naive_bayes_classifier_and_data
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True,
+                                                                                    sample_size=25)
+    assert len(shap_values_parallel_df) == 25
+
+
+def test_agnostic_kernel_k(random_forest_classifier_and_large_data):
+    model, x_df = random_forest_classifier_and_large_data
+    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True,
+                                                                                    k=25)
+    assert len(shap_values_parallel_df) == 25
+
+
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
     def remove_test_directories():

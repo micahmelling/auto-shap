@@ -51,13 +51,18 @@ def generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd
     return df
 
 
+# TODO: don't use background samples - just x_df
 def produce_shap_output_with_agnostic_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                                 regression_model: bool, linear_model: bool,
-                                                return_df: bool = True, n_jobs: int = None) -> tuple:
+                                                return_df: bool = True, n_jobs: int = None,
+                                                sample_size: int = None, k: int = None) -> tuple:
     """
     Using the Kernel Explainer, produces SHAP values and associated output: SHAP values for every row in x_df, the
     expected value from the SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel
     to increase speed.
+
+    Since the Kenel Explainer can be computationally expensive, x_df can be subsampled by either the sample_size or the
+    k parameters. The former will take random samples, and the latter will take k-means summarized samples.
 
     :param model: fitted model
     :param x_df: x dataframe
@@ -67,9 +72,16 @@ def produce_shap_output_with_agnostic_explainer(model: callable, x_df: pd.DataFr
     :param return_df: Boolean of whether to return a dataframe; if False, an array is returned
     :param linear_model: Boolean of whether or not the explainer is for a linear model
     :param n_jobs: number of cores to use when processing
+    :param sample_size: Creates an optional random subsample of background samples
+    :param k: Creates an optional k-means subsample of background samples
     :return: tuple with three components: SHAP values (dataframe or array), the expected value from the SHAP explainer,
     and a dataframe of global SHAP values
     """
+    if sample_size:
+        x_df = shap.sample(x_df, sample_size)
+    elif k:
+        x_df = shap.kmeans(x_df, k)
+        x_df = pd.DataFrame(x_df.data)
     if regression_model:
         explainer = shap.KernelExplainer(model.predict, x_df)
     else:
@@ -193,12 +205,17 @@ def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.Data
 
 def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_agnostic: bool, linear_model: bool,
                             tree_model: bool, calibrated_model: bool, boosting_model: bool, regression_model: bool,
-                            voting_or_stacking_model: bool = False, n_jobs: int = None) -> tuple:
+                            voting_or_stacking_model: bool = False, n_jobs: int = None, sample_size: int = None,
+                            k: int = None) -> tuple:
     """
     Produces SHAP output for every observation in x_df: SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values. Runs the SHAP explainer in parallel to increase speed.
     The appropriate explainer is used based on the boolean function arguments. The Kernel Explainer is used as the
     fallback option.
+
+    x_df can be subsampled by either the sample_size or the k parameters. The former will take random samples, and the
+    latter will take k-means summarized samples. These are optional arguments that are most useful when the Kernel
+    Explainer would be employed.
 
     :param model: fitted model
     :param x_df: x dataframe
@@ -211,6 +228,8 @@ def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_agnostic: b
     classification model
     :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :param n_jobs: number of cores to use when processing
+    :param sample_size: Creates an optional random subsample of background samples
+    :param k: Creates an optional k-means subsample of background samples
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
     """
@@ -218,7 +237,7 @@ def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_agnostic: b
         use_agnostic = True
     if use_agnostic or voting_or_stacking_model:
         return produce_shap_output_with_agnostic_explainer(model, x_df, boosting_model, regression_model, linear_model,
-                                                           n_jobs=n_jobs)
+                                                           n_jobs=n_jobs, sample_size=sample_size, k=k)
     else:
         if calibrated_model:
             return produce_shap_output_for_calibrated_classifier(model, x_df, boosting_model, linear_model,
@@ -254,7 +273,7 @@ def generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_t
 def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool = None, tree_model: bool = None,
                          boosting_model: bool = None, calibrated_model: bool = None, regression_model: bool = False,
                          voting_or_stacking_model: bool = False, use_agnostic: bool = False,
-                         n_jobs: int = None) -> tuple:
+                         n_jobs: int = None, sample_size: int = None, k: int = None) -> tuple:
     """
     Generates SHAP values for the provided model and x_df. Three pieces of output are generated: dataframe of SHAP
     values for every row in x_df, the expected value from the SHAP explainer, and a dataframe of global SHAP values.
@@ -265,7 +284,8 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     handle appropriately. Further, if the model is a Voting or Stacking ensemble, the kernel explainer will
     automatically be selected. Lastly, the user can specify any of these booleans if needed or useful. Related, the user
     can specify if they want to use Kernel SHAP, which is appropriate in certain cases but is computationally expensive.
-    If using Kernel SHAP, it's recommended to use a sample of x_df.
+    If using Kernel SHAP, x_df can be subsampled by either the sample_size or the k parameters. The former will take
+    random samples, and the latter will take k-means summarized samples.
 
     :param model: fitted model
     :param x_df: x dataframe
@@ -278,6 +298,8 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
     :param voting_or_stacking_model: Boolean of whether or not this is a voting or stacking model
     :param use_agnostic: Boolean of whether or not to use an agnostic explainer (the Kernel Explainer)
     :param n_jobs: number of cores to use when processing
+    :param sample_size: Creates an optional random subsample of background samples
+    :param k: Creates an optional k-means subsample of background samples
     :return: tuple with three components: dataframe of SHAP values for every row in x_df, the expected value from the
     SHAP explainer, and a dataframe of global SHAP values
     """
@@ -288,7 +310,7 @@ def generate_shap_values(model: callable, x_df: pd.DataFrame, linear_model: bool
         )
     shap_values_df, shap_expected_value, global_shap_df = produce_raw_shap_values(
         model, x_df, use_agnostic, linear_model, tree_model, calibrated_model, boosting_model, regression_model,
-        voting_or_stacking_model, n_jobs
+        voting_or_stacking_model, n_jobs, sample_size, k
     )
     return shap_values_df, shap_expected_value, global_shap_df
 

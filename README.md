@@ -197,10 +197,16 @@ auto-generated model qualities.
 >>> generate_shap_values(model, x_df, use_kernel=True)
 ```
 
+Since the Kenel Explainer can be computationally expensive, x_df can be subsampled
+by either the sample_size or the k parameters. The former will take random samples,
+and the latter will take k-means summarized samples.
+
 ## Voting and Stacking Models
 If auto-shap detects a voting or stacking model, it will automatically use the
 Kernel Explainer. The Kernel SHAP is computationally expensive, so you may
-want to use a sample of x_df. Additionally, there is a pickle error when using
+want to use a sample of x_df or use the previously-discussed arguments.
+
+Additionally, there is a pickle error when using
 multiprocessing with a scikit-learn Voting or Stacking model with SHAP. Therefore, no
 multiprocessing is used in such cases, which is more motivation for subsetting
 x_df.
@@ -214,9 +220,10 @@ get_shap_expected_value(explainer: callable, boosting_model: bool, linear_model)
 
 generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd.DataFrame
 
-produce_shap_output_with_kernel_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
-                                          regression_model: bool, linear_model: bool,
-                                          return_df: bool = True, n_jobs: int = None) -> tuple
+def produce_shap_output_with_agnostic_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
+                                                regression_model: bool, linear_model: bool,
+                                                return_df: bool = True, n_jobs: int = None,
+                                                sample_size: int = None, k: int = None) -> tuple
 
 produce_shap_output_with_tree_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                         regression_model: bool, linear_model: bool,
@@ -228,9 +235,10 @@ produce_shap_output_with_linear_explainer(model: callable, x_df: pd.DataFrame, r
 produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                               linear_model: bool, n_jobs: int = None) -> tuple
 
-produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_kernel: bool, linear_model: bool, tree_model: bool,
-                        calibrated_model: bool, boosting_model: bool, regression_model: bool,
-                        voting_or_stacking_model: bool, n_jobs: int = None) -> tuple
+def produce_raw_shap_values(model: callable, x_df: pd.DataFrame, use_agnostic: bool, linear_model: bool,
+                            tree_model: bool, calibrated_model: bool, boosting_model: bool, regression_model: bool,
+                            voting_or_stacking_model: bool = False, n_jobs: int = None, sample_size: int = None,
+                            k: int = None) -> tuple
 
 
 generate_shap_summary_plot(shap_values: np.array, x_df: pd.DataFrame, plot_type: str, save_path: str,
