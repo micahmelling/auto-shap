@@ -51,7 +51,6 @@ def generate_shap_global_values(shap_values: np.array, x_df: pd.DataFrame) -> pd
     return df
 
 
-# TODO: don't use background samples - just x_df
 def produce_shap_output_with_agnostic_explainer(model: callable, x_df: pd.DataFrame, boosting_model: bool,
                                                 regression_model: bool, linear_model: bool,
                                                 return_df: bool = True, n_jobs: int = None,
@@ -184,14 +183,18 @@ def produce_shap_output_for_calibrated_classifier(model: callable, x_df: pd.Data
     shap_values_list = []
     shap_expected_list = []
     for calibrated_classifier in model.calibrated_classifiers_:
+        if 'base_estimator' in model.get_params():
+            underling_estimator = calibrated_classifier.base_estimator
+        else:
+            underling_estimator = calibrated_classifier.estimator
         if linear_model:
             shap_values, shap_expected_value, _ = produce_shap_output_with_linear_explainer(
-                calibrated_classifier.base_estimator, x_df, regression_model=False, linear_model=True,
+                underling_estimator, x_df, regression_model=False, linear_model=True,
                 return_df=False, n_jobs=n_jobs
             )
         else:
             shap_values, shap_expected_value, _ = produce_shap_output_with_tree_explainer(
-                calibrated_classifier.base_estimator, x_df, boosting_model, regression_model=False,
+                underling_estimator, x_df, boosting_model, regression_model=False,
                 linear_model=False, return_df=False, n_jobs=n_jobs
             )
         shap_values_list.append(shap_values)
