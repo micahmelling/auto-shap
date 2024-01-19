@@ -153,32 +153,32 @@ def lgbm_regressor_and_data():
 
 @pytest.fixture
 def extra_trees_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=ExtraTreesClassifier(), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=ExtraTreesClassifier(), cv=3))
 
 
 @pytest.fixture
 def random_forest_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=RandomForestClassifier(), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=RandomForestClassifier(), cv=3))
 
 
 @pytest.fixture
 def xgboost_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=XGBClassifier(n_jobs=1), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=XGBClassifier(n_jobs=1), cv=3))
 
 
 @pytest.fixture
 def gradient_boosting_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=GradientBoostingClassifier(), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=GradientBoostingClassifier(), cv=3))
 
 
 @pytest.fixture
 def log_reg_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=LogisticRegression(), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=LogisticRegression(), cv=3))
 
 
 @pytest.fixture
 def lgbm_calibrated_classifier_and_data():
-    return train_simple_classification_model(CalibratedClassifierCV(base_estimator=LGBMClassifier(), cv=3))
+    return train_simple_classification_model(CalibratedClassifierCV(estimator=LGBMClassifier(), cv=3))
 
 
 @pytest.fixture

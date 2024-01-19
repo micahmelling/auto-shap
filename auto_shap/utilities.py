@@ -53,7 +53,10 @@ def determine_model_qualities(model: callable, linear_model: bool = None, tree_m
     if not calibrated_model:
         calibrated_model = determine_if_name_in_object('calibrated', model)
     if calibrated_model:
-        model = model.calibrated_classifiers_[0].base_estimator
+        if 'base_estimator' in model.get_params():
+            model = model.calibrated_classifiers_[0].base_estimator
+        else:
+            model = model.calibrated_classifiers_[0].estimator
     if not linear_model:
         linear_model = determine_if_any_name_in_object(LINEAR_MODEL_NAMES, model)
     if not tree_model:
