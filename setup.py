@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setuptools.setup(
     name="auto_shap",
-    version="0.3.2",
+    version="1.0.0",
     author="Micah Melling",
     author_email="micahmelling@gmail.com",
     description="Calculate SHAP values in parallel and automatically detect what explainer to use",
@@ -14,7 +14,7 @@ setuptools.setup(
     url='https://github.com/micahmelling/auto-shap',
     license="MIT",
     packages=['auto_shap'],
-    install_requires=['shap>=0.35.0', 'pandas>=1.1.5', 'numpy>=1.21.6', 'matplotlib>=3.2.0', "numba>=0.56.4"],
+    install_requires=['shap>=0.46.0', 'pandas>=2.2.3', 'numpy>=1.26.4', 'matplotlib>=3.9.3', "numba>=0.60.0"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

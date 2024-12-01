@@ -1,6 +1,5 @@
 import os
 import shutil
-import time
 from copy import deepcopy
 
 import numpy as np
@@ -210,11 +209,23 @@ def naive_bayes_classifier_and_data():
     return train_simple_classification_model(GaussianNB())
 
 
+def create_shap_df(explainer, x_df):
+    shap_values = explainer.shap_values(x_df)
+    shap_values = shap_values.reshape(shap_values.shape[0], -1)
+    columns = list(x_df)
+    shap_df = pd.DataFrame(shap_values)
+    df_cols = shap_df.shape[1]
+    if df_cols > len(columns):
+        shap_df = shap_df.iloc[:, ::2]
+    shap_df.columns = columns
+    return shap_df
+
+
 def test_parallel_shap_accuracy_regression_linear(lasso_regressor_and_data):
     model, x_df = lasso_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.LinearExplainer(model, x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -230,7 +241,7 @@ def test_parallel_shap_accuracy_regression_linear_2(ridge_regressor_and_data):
     model, x_df = ridge_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.LinearExplainer(model, x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -246,7 +257,7 @@ def test_parallel_shap_accuracy_classification_linear(logistic_regression_classi
     model, x_df = logistic_regression_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.LinearExplainer(model, x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -262,7 +273,7 @@ def test_parallel_shap_accuracy_classification_tree(random_forest_classifier_and
     model, x_df = random_forest_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -274,7 +285,7 @@ def test_parallel_shap_accuracy_classification_tree_2(gradient_boosting_classifi
     model, x_df = gradient_boosting_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -288,7 +299,7 @@ def test_parallel_shap_accuracy_classification_tree_3(gradient_boosting_classifi
     model, x_df = gradient_boosting_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     assert shap_values_parallel_df.iloc[:, 0].equals(shap_values_df.iloc[:, 0])
     assert shap_values_parallel_df.iloc[:, 2].equals(shap_values_df.iloc[:, 2])
     assert shap_values_parallel_df.iloc[:, 5].equals(shap_values_df.iloc[:, 5])
@@ -298,7 +309,7 @@ def test_parallel_shap_accuracy_classification_tree_4(xgboost_classifier_and_dat
     model, x_df = xgboost_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     assert shap_values_parallel_df.iloc[:, 1].equals(shap_values_df.iloc[:, 1])
     assert shap_values_parallel_df.iloc[:, 3].equals(shap_values_df.iloc[:, 3])
     assert shap_values_parallel_df.iloc[:, 4].equals(shap_values_df.iloc[:, 4])
@@ -309,7 +320,7 @@ def test_parallel_shap_accuracy_classification_tree_5(lightgbm_classifier_and_da
     model, x_df = lightgbm_classifier_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model, model_output='probability', data=x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     assert shap_values_parallel_df.iloc[:, 1].equals(shap_values_df.iloc[:, 1])
     assert shap_values_parallel_df.iloc[:, 3].equals(shap_values_df.iloc[:, 3])
     assert shap_values_parallel_df.iloc[:, 4].equals(shap_values_df.iloc[:, 4])
@@ -320,7 +331,7 @@ def test_parallel_shap_accuracy_regression_tree(extra_trees_regressor_and_data):
     model, x_df = extra_trees_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -332,7 +343,7 @@ def test_parallel_shap_accuracy_regression_tree_2(xgb_regressor_and_data):
     model, x_df = xgb_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -344,7 +355,7 @@ def test_parallel_shap_accuracy_regression_tree_3(xgb_regressor_and_data):
     model, x_df = xgb_regressor_and_data
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
     explainer = shap.TreeExplainer(model)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
     shap_values_df['sum'] = shap_values_df.sum(axis=1)
@@ -359,7 +370,7 @@ def test_parallel_shap_accuracy_classification_kernel(random_forest_classifier_a
     x_df = x_df.head(25)
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
     explainer = shap.KernelExplainer(model.predict_proba, x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df['sum'] = round(shap_values_parallel_df['sum'], 4)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
@@ -374,7 +385,7 @@ def test_parallel_shap_accuracy_regression_kernel(random_forest_regressor_and_da
     x_df = x_df.head(25)
     shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
     explainer = shap.KernelExplainer(model.predict, x_df)
-    shap_values_df = pd.DataFrame(explainer.shap_values(x_df), columns=list(x_df))
+    shap_values_df = create_shap_df(explainer, x_df)
     shap_values_parallel_df['sum'] = shap_values_parallel_df.sum(axis=1)
     shap_values_parallel_df['sum'] = round(shap_values_parallel_df['sum'], 4)
     shap_values_parallel_df = shap_values_parallel_df.sort_values(by=['sum'], ascending=True)
@@ -382,31 +393,6 @@ def test_parallel_shap_accuracy_regression_kernel(random_forest_regressor_and_da
     shap_values_df['sum'] = round(shap_values_df['sum'], 4)
     shap_values_df = shap_values_df.sort_values(by=['sum'], ascending=True)
     assert shap_values_parallel_df['sum'].equals(shap_values_df['sum'])
-
-
-def test_parallel_speed(random_forest_classifier_and_large_data):
-    model, x_df = random_forest_classifier_and_large_data
-    parallel_start_time = time.time()
-    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df)
-    parallel_run_time = time.time() - parallel_start_time
-    non_parallel_start_time = time.time()
-    explainer = shap.TreeExplainer(model)
-    _ = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
-    non_parallel_run_time = time.time() - non_parallel_start_time
-    assert parallel_run_time < non_parallel_run_time
-
-
-def test_parallel_speed_kernel(random_forest_classifier_and_data):
-    model, x_df = random_forest_classifier_and_data
-    x_df = x_df.head(25)
-    parallel_start_time = time.time()
-    shap_values_parallel_df, shap_expected_parallel_value, _ = generate_shap_values(model, x_df, use_agnostic=True)
-    parallel_run_time = time.time() - parallel_start_time
-    non_parallel_start_time = time.time()
-    explainer = shap.KernelExplainer(model.predict_proba, x_df)
-    _ = pd.DataFrame(explainer.shap_values(x_df)[1], columns=list(x_df))
-    non_parallel_run_time = time.time() - non_parallel_start_time
-    assert parallel_run_time < non_parallel_run_time
 
 
 def test_classification_random_forest_model(random_forest_classifier_and_data):

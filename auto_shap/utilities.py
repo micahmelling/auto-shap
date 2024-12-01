@@ -85,11 +85,12 @@ def run_shap_explainer(x_df: pd.DataFrame, explainer: callable, boosting_model: 
     if boosting_model or regression_model or linear_model:
         shap_values = explainer.shap_values(x_df)
         if len(np.shape(shap_values)) == 3:
-            return shap_values[1]
+            return shap_values.reshape(shap_values.shape[0], -1)
         else:
-            return shap_values
+            return shap_values.reshape(shap_values.shape[0], -1)
     else:
-        return explainer.shap_values(x_df, check_additivity=False)[1]
+        shap_values = explainer.shap_values(x_df, check_additivity=False)
+        return shap_values.reshape(shap_values.shape[0], -1)
 
 
 def set_n_jobs(n_jobs: int, x_df: pd.DataFrame) -> int:
@@ -151,7 +152,13 @@ def make_shap_df(shap_values: np.array, x_df: pd.DataFrame) -> pd.DataFrame:
     :param x_df: x dataframe
     :return: dataframe of SHAP values
     """
-    return pd.DataFrame(shap_values, columns=list(x_df))
+    columns = list(x_df)
+    df = pd.DataFrame(shap_values)
+    df_cols = df.shape[1]
+    if df_cols > len(columns):
+        df = df.iloc[:, ::2]
+    df.columns = columns
+    return df
 
 
 def determine_if_name_in_object(name: str, py_object: object) -> bool:
